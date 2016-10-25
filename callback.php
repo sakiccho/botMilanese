@@ -1,4 +1,7 @@
 <?php
+
+require_once('config.php');
+
  //output log
  function getLog($_arr){
 
@@ -33,29 +36,34 @@
     return false;
 }
 
- $accessToken = 'ZLXujrYwwY1leuDg5zms46WQCf+D9geBmRPT41N/HORWxcRZuQnCWT5gE1gaSOCvSPEC3MtGh2SdPIQowdN6+rkYHRorOfkXHCZOKm834vNIxrsIBJ4fTEWPNQMC8k/ufuxXJ4QZORbm123yDlGHewdB04t89/1O/w1cDnyilFU=';
 
+ $requestHeader = array(
+     'Content-Type: application/json; charser=UTF-8',
+     'Authorization: Bearer ' . $accessToken
+   );
 
- //ユーザーからのメッセージ取得
+ //ユーザーからのメッセージをjson形式で取得
  $json_string = file_get_contents('php://input');
  $jsonObj = json_decode($json_string);
-
-
-
-
+ //メッセージ種別・テキスト本文・ユーザーID
  $type = $jsonObj->{"events"}[0]->{"message"}->{"type"};
- //メッセージ取得
  $text = $jsonObj->{"events"}[0]->{"message"}->{"text"};
- //ReplyToken取得
+ $userId = $jsonObj->{"events"}[0]->{"source"}->{"userId"};
+ //ReplyToken
  $replyToken = $jsonObj->{"events"}[0]->{"replyToken"};
 
+ $dbUserData = selectUserData($userId);
 
-//Typeによって内容を生成
-if($type == "text"){
-  $sendContent = createTextContent($text);
-} else if($type == "sticker"){
-  $sendContent = createStickerContent();
-}
+ if(is_null($dbUserData['userId'])){
+   insertUserData($requestHeader, $userId);
+ }
+
+  //Typeによって返信内容を変える
+  if($type == "text"){
+    $sendContent = createTextContent($text, $dbUserData);
+  } else if($type == "sticker"){
+    $sendContent = createStickerContent();
+  }
 
  $post_data = [
  	"replyToken" => $replyToken,
@@ -63,18 +71,14 @@ if($type == "text"){
  	];
 
  $ch = curl_init("https://api.line.me/v2/bot/message/reply");
- curl_setopt($ch, CURLOPT_POST, true);
- curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
- curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-     'Content-Type: application/json; charser=UTF-8',
-     'Authorization: Bearer ' . $accessToken
-     ));
+ curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
  $result = curl_exec($ch);
  curl_close($ch);
 
-function createTextContent($missiveText){
+
+function createTextContent($missiveText, $dbUserData){
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
@@ -92,11 +96,14 @@ function createTextContent($missiveText){
      $currentType = $rPtJsonObj['pattern'][$i][0];
     }
   }
-
+  //返信メッセージ番号をランダムに選択
   $replyNumber = mt_rand($beginPos[0], $beginPos[count($beginPos) - 1]);
+  //固有テキストを置換
+    //*** => 表示名
+    $replyMessage = str_replace("***",$dbUserData['displayName'],$rPtJsonObj['pattern'][$replyNumber][1]);
   return [
   	"type" => "text",
-  	"text" => $rPtJsonObj['pattern'][$replyNumber][1]
+  	"text" => $replyMessage
   ];
 }
 
@@ -147,6 +154,45 @@ function isMatch($targetArray, $targetString, $length){
     }
   }
   return 0;
+}
+
+/**
+ * ユーザーのプロフィールを取得して表示名を返す
+ *
+ * @param array $requestHeader
+ * @param string $userId
+ * @return string $displayName
+ */
+function getProfile($requestHeader, $userId){
+  $ch = curl_init("https://api.line.me/v2/bot/profile/{$userId}");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
+  $result = curl_exec($ch);
+  $jsonObj = json_decode($result);
+  $displayName = $jsonObj->displayName;
+  return $displayName;
+}
+
+function selectUserData($userId){
+  //ユーザー存在チェック
+  $sql = "SELECT * FROM `tbl_user` where `userId` = '{$userId}';";
+  $result = mysql_query($sql);
+  $userResult = mysql_fetch_assoc($result);
+  $dbProfile = array(
+    'userId' => $userResult['userId'],
+    'displayName' => $userResult['displayName']
+  );
+  return $dbProfile;
+}
+
+function insertUserData($requestHeader, $userId){
+
+  //存在しないユーザーの場合インサートする
+
+    $displayName = getProfile($requestHeader, $userId);
+    $inserSql = "INSERT INTO `tbl_user`(`userId`, `displayName`) VALUES ('{$userId}', '{$displayName}');";
+    $insertResult = mysql_query($inserSql);
+
 }
 
 ?>
