@@ -35,7 +35,7 @@ require_once('config.php');
     //return
     return false;
 }
-
+ $globalTextType = 0;
 
  $requestHeader = array(
      'Content-Type: application/json; charser=UTF-8',
@@ -49,6 +49,7 @@ require_once('config.php');
  $type = $jsonObj->{"events"}[0]->{"message"}->{"type"};
  $text = $jsonObj->{"events"}[0]->{"message"}->{"text"};
  $userId = $jsonObj->{"events"}[0]->{"source"}->{"userId"};
+ $placeType =  $userId = $jsonObj->{"events"}[0]->{"source"}->{"type"}; //room or user
  //ReplyToken
  $replyToken = $jsonObj->{"events"}[0]->{"replyToken"};
 
@@ -60,7 +61,7 @@ require_once('config.php');
 
   //Typeによって返信内容を変える
   if($type == "text"){
-    $sendContent = createTextContent($text, $dbUserData);
+    $sendContent = createTextContent($text, $dbUserData, $requestHeader, $replyToken);
   } else if($type == "sticker"){
     $sendContent = createStickerContent();
   }
@@ -70,15 +71,12 @@ require_once('config.php');
  	"messages" => [$sendContent]
  	];
 
- $ch = curl_init("https://api.line.me/v2/bot/message/reply");
- curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
- curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
- curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
- $result = curl_exec($ch);
- curl_close($ch);
+sendMessage($requestHeader, $post_data);
+if($globalTextType == 5){
+  getLeave($placeType, $jsonObj->{"events"}[0]->{"source"}->{$placeType."Id"}, $requestHeader);
+}
 
-
-function createTextContent($missiveText, $dbUserData){
+function createTextContent($missiveText, $dbUserData, $requestHeader, $replyToken){
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
@@ -98,13 +96,19 @@ function createTextContent($missiveText, $dbUserData){
   }
   //返信メッセージ番号をランダムに選択
   $replyNumber = mt_rand($beginPos[0], $beginPos[count($beginPos) - 1]);
-  //固有テキストを置換
-    //*** => 表示名
-    $replyMessage = str_replace("***",$dbUserData['displayName'],$rPtJsonObj['pattern'][$replyNumber][1]);
-  return [
+  $replyMessage = $rPtJsonObj['pattern'][$replyNumber][1];
+
+  //置換
+  $replyMessage = str_replace("*name*",$dbUserData['displayName'],$replyMessage);
+
+  $sendContent = [
   	"type" => "text",
   	"text" => $replyMessage
   ];
+
+  $GLOBALS['globalTextType'] = $textType;
+
+  return $sendContent;
 }
 
 function createStickerContent(){
@@ -171,6 +175,24 @@ function getProfile($requestHeader, $userId){
   $jsonObj = json_decode($result);
   $displayName = $jsonObj->displayName;
   return $displayName;
+}
+
+function sendMessage($requestHeader, $post_data){
+
+  $ch = curl_init("https://api.line.me/v2/bot/message/reply");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
+  $result = curl_exec($ch);
+  curl_close($ch);
+}
+
+function getLeave($placeType, $placeId, $requestHeader){
+  $ch = curl_init("https://api.line.me/v2/bot/{$placeType}/{$placeId}/leave");
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
+  $result = curl_exec($ch);
+  curl_close($ch);
 }
 
 function selectUserData($userId){
