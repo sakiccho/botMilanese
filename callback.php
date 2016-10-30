@@ -1,82 +1,56 @@
 <?php
 
-require_once('config.php');
+require_once('doFunc.php');
 
- //output log
- function getLog($_arr){
+$doFunc = new doFunc();
+$doSqlFunc = new doSqlFunc();
 
-    /*
-        var_dumpの内容を$_logに格納
-    /*---------------------------------------*/
-    //var_dumpを出力せず、一旦寄せておく設定にする
-    ob_start();
-
-    //var_dumpでデバッグしたい内容を寄せておく
-    var_dump($_arr);
-
-    //寄せておいたvar_dumpの結果を文字列として取得
-    $_log = ob_get_contents();
-
-    //var_dumpの出力設定を解除
-    ob_end_clean();
-
-    /*
-        log.txtに格納
-    /*---------------------------------------*/
-    //linebotディレクトリに用意したlog.txtに書き込みできるようにする
-    $fp = fopen('log.txt','w');
-
-    //var_dumpの内容を記録した$_logをlog.txtに上書き
-    fwrite($fp,$_log);
-
-    //log.txtを閉じる
-    fclose($fp);
-
-    //return
-    return false;
-}
- $globalTextType = 0;
-
- $requestHeader = array(
-     'Content-Type: application/json; charser=UTF-8',
-     'Authorization: Bearer ' . $accessToken
-   );
-
- //ユーザーからのメッセージをjson形式で取得
  $json_string = file_get_contents('php://input');
  $jsonObj = json_decode($json_string);
- //メッセージ種別・テキスト本文・ユーザーID
- $type = $jsonObj->{"events"}[0]->{"message"}->{"type"};
- $text = $jsonObj->{"events"}[0]->{"message"}->{"text"};
- $userId = $jsonObj->{"events"}[0]->{"source"}->{"userId"};
- $placeType =  $userId = $jsonObj->{"events"}[0]->{"source"}->{"type"}; //room or user
- //ReplyToken
- $replyToken = $jsonObj->{"events"}[0]->{"replyToken"};
+ define('TYPE', $jsonObj->{"events"}[0]->{"message"}->{"type"}); //text,stickerなど
+ define('TEXT', $jsonObj->{"events"}[0]->{"message"}->{"text"}); //送信されたメッセージ
+ define('PLACETYPE', $jsonObj->{"events"}[0]->{"source"}->{"type"}); //room,group,user
+ define('REPLYTOKEN', $jsonObj->{"events"}[0]->{"replyToken"}); //一度のみ使用可の返信用トークン
+ define('USERID', $jsonObj->{"events"}[0]->{"source"}->{"userId"}); //送信者の識別ID
+ define('DISPLAYNAME', $doFunc->getProfile(USERID)); //送信者の表示名
 
- $dbUserData = selectUserData($userId);
+ //DBからユーザー情報を取得
+ $dbUserData = $doSqlFunc->selectUserData(USERID);
 
- if(is_null($dbUserData['userId'])){
-   insertUserData($requestHeader, $userId);
+ //DBにユーザーが存在しない場合は新規登録する
+ if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
+   $doSqlFunc->insertUserData(USERID, DISPLAYNAME);
  }
 
-  //Typeによって返信内容を変える
-  if($type == "text"){
-    $sendContent = createTextContent($text, $dbUserData, $requestHeader, $replyToken);
-  } else if($type == "sticker"){
+  //Typeごとに送信コンテンツを作成
+  switch(TYPE){
+    case 'text':
+    $sendContent = createTextContent(TEXT);
+    break;
+
+    case 'sticker':
     $sendContent = createStickerContent();
+    break;
   }
 
  $post_data = [
- 	"replyToken" => $replyToken,
+ 	"replyToken" => REPLYTOKEN,
  	"messages" => [$sendContent]
  	];
 
-sendMessage($requestHeader, $post_data);
+ $doFunc->sendMessage($post_data);
+
+//追い出し
 if($globalTextType == 5){
-  getLeave($placeType, $jsonObj->{"events"}[0]->{"source"}->{$placeType."Id"}, $requestHeader);
+  $doFunc->getLeave(PLACETYPE, $jsonObj->{"events"}[0]->{"source"}->{PLACETYPE."Id"});
 }
 
-function createTextContent($missiveText, $dbUserData, $requestHeader, $replyToken){
+//メッセージをDBに格納
+$doSqlFunc->insertMessage(USERID, TEXT, 1);
+
+
+
+function createTextContent($missiveText){
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
@@ -97,15 +71,12 @@ function createTextContent($missiveText, $dbUserData, $requestHeader, $replyToke
   //返信メッセージ番号をランダムに選択
   $replyNumber = mt_rand($beginPos[0], $beginPos[count($beginPos) - 1]);
   $replyMessage = $rPtJsonObj['pattern'][$replyNumber][1];
-
   //置換
-  $replyMessage = str_replace("*name*",$dbUserData['displayName'],$replyMessage);
-
+  $replyMessage = str_replace("*name*", DISPLAYNAME,$replyMessage);
   $sendContent = [
   	"type" => "text",
   	"text" => $replyMessage
   ];
-
   $GLOBALS['globalTextType'] = $textType;
 
   return $sendContent;
@@ -143,7 +114,6 @@ function getDictJson($url) {
 /**
  * ユーザーから送られたテキストの感情タイプをjsonファイルから検索する
  * 一致しない場合は0(その他)を返す
- *
  * @param array $targetArray
  * @param string $targetString
  * @param int $length
@@ -160,61 +130,5 @@ function isMatch($targetArray, $targetString, $length){
   return 0;
 }
 
-/**
- * ユーザーのプロフィールを取得して表示名を返す
- *
- * @param array $requestHeader
- * @param string $userId
- * @return string $displayName
- */
-function getProfile($requestHeader, $userId){
-  $ch = curl_init("https://api.line.me/v2/bot/profile/{$userId}");
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
-  $result = curl_exec($ch);
-  $jsonObj = json_decode($result);
-  $displayName = $jsonObj->displayName;
-  return $displayName;
-}
-
-function sendMessage($requestHeader, $post_data){
-
-  $ch = curl_init("https://api.line.me/v2/bot/message/reply");
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
-  $result = curl_exec($ch);
-  curl_close($ch);
-}
-
-function getLeave($placeType, $placeId, $requestHeader){
-  $ch = curl_init("https://api.line.me/v2/bot/{$placeType}/{$placeId}/leave");
-  curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeader);
-  $result = curl_exec($ch);
-  curl_close($ch);
-}
-
-function selectUserData($userId){
-  //ユーザー存在チェック
-  $sql = "SELECT * FROM `tbl_user` where `userId` = '{$userId}';";
-  $result = mysql_query($sql);
-  $userResult = mysql_fetch_assoc($result);
-  $dbProfile = array(
-    'userId' => $userResult['userId'],
-    'displayName' => $userResult['displayName']
-  );
-  return $dbProfile;
-}
-
-function insertUserData($requestHeader, $userId){
-
-  //存在しないユーザーの場合インサートする
-
-    $displayName = getProfile($requestHeader, $userId);
-    $inserSql = "INSERT INTO `tbl_user`(`userId`, `displayName`) VALUES ('{$userId}', '{$displayName}');";
-    $insertResult = mysql_query($inserSql);
-
-}
 
 ?>

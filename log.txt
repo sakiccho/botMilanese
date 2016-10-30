@@ -1,1 +1,71 @@
-int(222)
+object(PDOException)#4 (8) {
+  ["message":protected]=>
+  string(113) "SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo failed: nodename nor servname provided, or not known"
+  ["string":"Exception":private]=>
+  string(0) ""
+  ["code":protected]=>
+  int(2002)
+  ["file":protected]=>
+  string(61) "/Applications/XAMPP/xamppfiles/htdocs/botMilanese/setting.php"
+  ["line":protected]=>
+  int(17)
+  ["trace":"Exception":private]=>
+  array(3) {
+    [0]=>
+    array(6) {
+      ["file"]=>
+      string(61) "/Applications/XAMPP/xamppfiles/htdocs/botMilanese/setting.php"
+      ["line"]=>
+      int(17)
+      ["function"]=>
+      string(11) "__construct"
+      ["class"]=>
+      string(3) "PDO"
+      ["type"]=>
+      string(2) "->"
+      ["args"]=>
+      array(3) {
+        [0]=>
+        string(71) "mysql:dbname=LAA0736454-data;host=mysql111.phy.lolipop.lan;charset=utf8"
+        [1]=>
+        string(10) "LAA0736454"
+        [2]=>
+        string(12) "Mtj2rZe682Vx"
+      }
+    }
+    [1]=>
+    array(6) {
+      ["file"]=>
+      string(62) "/Applications/XAMPP/xamppfiles/htdocs/botMilanese/callback.php"
+      ["line"]=>
+      int(165)
+      ["function"]=>
+      string(9) "connectDB"
+      ["class"]=>
+      string(5) "mySet"
+      ["type"]=>
+      string(2) "->"
+      ["args"]=>
+      array(0) {
+      }
+    }
+    [2]=>
+    array(4) {
+      ["file"]=>
+      string(62) "/Applications/XAMPP/xamppfiles/htdocs/botMilanese/callback.php"
+      ["line"]=>
+      int(24)
+      ["function"]=>
+      string(14) "selectUserData"
+      ["args"]=>
+      array(1) {
+        [0]=>
+        &NULL
+      }
+    }
+  }
+  ["previous":"Exception":private]=>
+  NULL
+  ["errorInfo"]=>
+  NULL
+}
