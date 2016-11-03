@@ -41,11 +41,16 @@ class doSqlFunc extends config{
    *          イベントフラグ
    */
   function insertMessage($userId, $text, $eventId){
-    $prepare = $this->pdo->prepare("INSERT INTO `tbl_message`(`eventId`, `userId`, `message`) VALUES (?, ?, ?);");
-    $prepare->bindValue(1,$eventId,PDO::PARAM_INT);
-    $prepare->bindValue(2,$userId);
-    $prepare->bindValue(3,$text);
-    $prepare->execute();
+    if(is_null($text)){$text='**exceptForText**';}
+    try{
+      $prepare = $this->pdo->prepare("INSERT INTO `tbl_message`(`eventId`, `userId`, `message`) VALUES (?, ?, ?);");
+      $prepare->bindValue(1,$eventId,PDO::PARAM_INT);
+      $prepare->bindValue(2,$userId);
+      $prepare->bindValue(3,$text);
+      $prepare->execute();
+    } catch(PDOException $e){
+      $this->getLog($e->getMessage());
+    }
   }
 
   /**
@@ -54,15 +59,15 @@ class doSqlFunc extends config{
    * @access public
    * @param int $userId
    *          送信者の識別ID
-   * @return array $dbProfile
+   * @return array $dbProfile, bool
    *          取得されたユーザー情報
    */
-  function selectUserData($userId){
+  function getUserData($userId){
+
     //ユーザー存在チェック
-    $sql = "SELECT * FROM `tbl_user` where `userId` = '{$userId}';";
+    $sql = "SELECT * FROM `tbl_user` WHERE `userId` = 'U015dc1cc36df8e76f4a313d8b1c3b769';";
     $result = $this->pdo->query($sql);
     $userResult = $result -> fetch(PDO::FETCH_ASSOC);
-
     $dbProfile = array(
       'userId' => $userResult['userId'],
       'displayName' => $userResult['displayName'],
@@ -72,6 +77,28 @@ class doSqlFunc extends config{
     );
     return $dbProfile;
   }
+
+    /**
+     * ユーザーから最後に送られたメッセージを取得する
+     *
+     * @access public
+     * @param int $userId
+     *          送信者の識別ID
+     * @return array $dbMessage
+     *          イベントID,メッセージ
+     */
+    function getLatestMessage($userId){
+      //ユーザー存在チェック
+      $sql = "SELECT `eventId`, `message` FROM `tbl_message` WHERE `userId` = '{$userId}' ORDER BY `sendDate` DESC LIMIT 0,1;";
+      $result = $this->pdo->query($sql);
+      $lastMessageResult = $result -> fetch(PDO::FETCH_ASSOC);
+      $dbMessage = array(
+        'eventId' => $lastMessageResult['eventId'],
+        'message' => $lastMessageResult['message'],
+      );
+      $this->getLog($dbMessage);
+      return $dbMessage;
+    }
 
   /**
    * メッセージ登録処理用の関数

@@ -10,6 +10,9 @@ $doFunc = new doFunc();
 $doSqlFunc = new doSqlFunc();
 $conf = new config();
 
+/** *=================================================================================================================
+* データ取得処理
+* ================================================================================================================== */
  $json_string = file_get_contents('php://input');
  $jsonObj = json_decode($json_string);
  define('TYPE', $jsonObj->{"events"}[0]->{"message"}->{"type"}); //text,stickerなど
@@ -19,14 +22,12 @@ $conf = new config();
  define('USERID', $jsonObj->{"events"}[0]->{"source"}->{"userId"}); //送信者の識別ID
  define('DISPLAYNAME', $doFunc->getProfile(USERID)); //送信者の表示名
 
+
+ /** *=================================================================================================================
+ * 返信内容作成処理
+ * ================================================================================================================== */
  //DBからユーザー情報を取得
- $dbUserData = $doSqlFunc->selectUserData(USERID);
-
- //DBにユーザーが存在しない場合は新規登録する
- if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
-   $doSqlFunc->insertUserData(USERID, DISPLAYNAME);
- }
-
+ $dbUserData = $doSqlFunc->getUserData(USERID);
   //Typeごとに送信コンテンツを作成
   switch(TYPE){
     case 'text':
@@ -53,6 +54,11 @@ if($globalTextType == 5){
 //メッセージをDBに格納
 $doSqlFunc->insertMessage(USERID, TEXT, 1);
 
+//DBにユーザーが存在しない場合は新規登録する
+if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
+  $doSqlFunc->insertUserData(USERID, DISPLAYNAME);
+}
+
 
 
 function createTextContent($missiveText){
@@ -60,17 +66,23 @@ function createTextContent($missiveText){
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
   $typeCount = 0;
-
-
-  //感情タイプを判定
-  $textType = isMatch($mPtJsonObj, $missiveText, $matchTypeLength);
+  $doSqlFunc= new doSqlFunc();
+  if(!is_null($GLOBALS['dbUserData']['userId'])){
+    $latestMessage = $doSqlFunc->getLatestMessage(USERID);
+    //前回と同じメッセージの場合
+    if($latestMessage['message'] == TEXT){
+      $textType = 7;
+    }
+  } else {
+    //感情タイプを内容から判定
+    $textType = isMatch($mPtJsonObj, $missiveText, $matchTypeLength);
+  }
 
   $column = getColumnNumber($rPtJsonObj['pattern'], $textType);
-
-
   //返信メッセージ番号をランダムに選択
   $replyNumber = mt_rand($column['begin'], $column['end']);
   $replyMessage = $rPtJsonObj['pattern'][$replyNumber][1];
+
   //置換
   $replyMessage = str_replace("*name*", DISPLAYNAME,$replyMessage);
   $sendContent = [
@@ -131,10 +143,7 @@ function isMatch($targetArray, $targetString, $length){
 }
 
 function getColumnNumber($searchArray ,$typeNum){
-  $a = new doFunc();
-
   $arrayLength = count($searchArray);
-
   $beginPos = array();
   //返信タイプのJsonファイル内での開始と終了位置を取得
   for($i=0;$i<$arrayLength;$i++){
