@@ -1,9 +1,14 @@
 <?php
-
 require_once('doFunc.php');
+require_once('doSqlFunc.php');
+require_once('./settings/config.php');
+use BotMilanese\Setting\config;
+use BotMilanese\Controller\Message\doFunc;
+use BotMilanese\Controller\SQL\doSqlFunc;
 
 $doFunc = new doFunc();
 $doSqlFunc = new doSqlFunc();
+$conf = new config();
 
  $json_string = file_get_contents('php://input');
  $jsonObj = json_decode($json_string);
@@ -54,22 +59,17 @@ function createTextContent($missiveText){
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
-  $recieveTypeLength = count($rPtJsonObj['pattern']);
   $typeCount = 0;
-  $beginPos = array();
+
 
   //感情タイプを判定
   $textType = isMatch($mPtJsonObj, $missiveText, $matchTypeLength);
 
-  //返信タイプのJsonファイル内での開始と終了位置を取得
-  for($i=0;$i<$recieveTypeLength;$i++){
-    if($rPtJsonObj['pattern'][$i][0] == $textType){
-     array_push($beginPos,$i);
-     $currentType = $rPtJsonObj['pattern'][$i][0];
-    }
-  }
+  $column = getColumnNumber($rPtJsonObj['pattern'], $textType);
+
+
   //返信メッセージ番号をランダムに選択
-  $replyNumber = mt_rand($beginPos[0], $beginPos[count($beginPos) - 1]);
+  $replyNumber = mt_rand($column['begin'], $column['end']);
   $replyMessage = $rPtJsonObj['pattern'][$replyNumber][1];
   //置換
   $replyMessage = str_replace("*name*", DISPLAYNAME,$replyMessage);
@@ -130,5 +130,24 @@ function isMatch($targetArray, $targetString, $length){
   return 0;
 }
 
+function getColumnNumber($searchArray ,$typeNum){
+  $a = new doFunc();
+
+  $arrayLength = count($searchArray);
+
+  $beginPos = array();
+  //返信タイプのJsonファイル内での開始と終了位置を取得
+  for($i=0;$i<$arrayLength;$i++){
+    if($searchArray[$i][0] == $typeNum){
+     array_push($beginPos,$i);
+    }
+  }
+
+  $pos = [
+    "begin" => $beginPos[0],
+    "end" => $beginPos[0] + count($beginPos) - 1
+  ];
+  return $pos;
+}
 
 ?>
