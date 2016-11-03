@@ -1,4 +1,6 @@
 
-settings/config.php
+settings/
 
-*.png
+document/
+
+img/
