@@ -37,17 +37,30 @@ class doSqlFunc extends config{
    *          送信者の識別ID
    * @param string $text
    *          送信されたメッセージ
-   * @param int $eventId
+   * @param int $statusId
    *          イベントフラグ
    */
-  function insertMessage($userId, $text, $eventId){
+  function insertMessage($userId, $text, $statusId){
     if(is_null($text)){$text='**exceptForText**';}
     try{
-      $prepare = $this->pdo->prepare("INSERT INTO `tbl_message`(`eventId`, `userId`, `message`) VALUES (?, ?, ?);");
-      $prepare->bindValue(1,$eventId,PDO::PARAM_INT);
-      $prepare->bindValue(2,$userId);
-      $prepare->bindValue(3,$text);
+      $prepare = $this->pdo->prepare("INSERT INTO `tbl_message`(`statusId`, `userId`, `message`) VALUES (?, ?, ?);");
+      $prepare->bindValue(1,$statusId,PDO::PARAM_INT);
+      $prepare->bindParam(2,$userId);
+      $prepare->bindParam(3,$text);
       $prepare->execute();
+    } catch(PDOException $e){
+      $this->getLog($e->getMessage());
+    }
+  }
+
+  function insertPostData($userId, $postData){
+    try{
+      $prepare = $this->pdo->prepare("UPDATE `tbl_user` SET {$postData[0]} = ? WHERE `userId` = ?;");$this->getLog($prepare);
+      $prepare->bindValue(1,$postData[1],PDO::PARAM_INT);
+      $prepare->bindParam(2,$userId);
+
+      $prepare->execute();
+
     } catch(PDOException $e){
       $this->getLog($e->getMessage());
     }
@@ -78,27 +91,26 @@ class doSqlFunc extends config{
     return $dbProfile;
   }
 
-    /**
-     * ユーザーから最後に送られたメッセージを取得する
-     *
-     * @access public
-     * @param int $userId
-     *          送信者の識別ID
-     * @return array $dbMessage
-     *          イベントID,メッセージ
-     */
-    function getLatestMessage($userId){
-      //ユーザー存在チェック
-      $sql = "SELECT `eventId`, `message` FROM `tbl_message` WHERE `userId` = '{$userId}' ORDER BY `sendDate` DESC LIMIT 0,1;";
-      $result = $this->pdo->query($sql);
-      $lastMessageResult = $result -> fetch(PDO::FETCH_ASSOC);
-      $dbMessage = array(
-        'eventId' => $lastMessageResult['eventId'],
-        'message' => $lastMessageResult['message'],
-      );
-      $this->getLog($dbMessage);
-      return $dbMessage;
-    }
+  /**
+   * ユーザーから最後に送られたメッセージを取得する
+   *
+   * @access public
+   * @param int $userId
+   *          送信者の識別ID
+   * @return array $dbMessage
+   *          イベントID,メッセージ
+   */
+  function getLatestMessage($userId){
+    //ユーザー存在チェック
+    $sql = "SELECT `statusId`, `message` FROM `tbl_message` WHERE `userId` = '{$userId}' ORDER BY `sendDate` DESC LIMIT 0,1;";
+    $result = $this->pdo->query($sql);
+    $lastMessageResult = $result -> fetch(PDO::FETCH_ASSOC);
+    $dbMessage = array(
+      'statusId' => $lastMessageResult['statusId'],
+      'message' => $lastMessageResult['message'],
+    );
+    return $dbMessage;
+  }
 
   /**
    * メッセージ登録処理用の関数

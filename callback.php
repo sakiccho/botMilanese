@@ -21,24 +21,93 @@ $conf = new config();
  define('REPLYTOKEN', $jsonObj->{"events"}[0]->{"replyToken"}); //一度のみ使用可の返信用トークン
  define('USERID', $jsonObj->{"events"}[0]->{"source"}->{"userId"}); //送信者の識別ID
  define('DISPLAYNAME', $doFunc->getProfile(USERID)); //送信者の表示名
-
+ define('POSTBACK', $jsonObj->{"events"}[0]->{"postback"}->{"data"}); //ボタンテンプレートの戻り値
 
  /** *=================================================================================================================
  * 返信内容作成処理
  * ================================================================================================================== */
- //DBからユーザー情報を取得
- $dbUserData = $doSqlFunc->getUserData(USERID);
-  //Typeごとに送信コンテンツを作成
-  switch(TYPE){
-    case 'text':
-    $sendContent = createTextContent(TEXT);
-    break;
+ //if(USERID=='U015dc1cc36df8e76f4a313d8b1c3b769'){
+ // Write debug code
+ //}
+ /**
+ * #1 POSTBACKにデータが存在する場合
+ */
+ if(!is_null(POSTBACK)){
+   $postData = explode("=",POSTBACK); //array0にカラム名, 2にインサート値が入る
+   $sendContent = [
+    "type" => "text",
+    "text" => "おっけ、ありがとー"
+   ];
+   $doSqlFunc->insertPostData(USERID,$postData);
 
-    case 'sticker':
-    $sendContent = createStickerContent();
-    break;
-  }
+ /**
+ * #2 通常の返信作成処理
+ */
+ } else {
+   //DBからユーザー情報を取得
+   $GL_DbUserData = $doSqlFunc->getUserData(USERID);
+   //DBから最終メッセージを取得
+   $GL_LatestMessage = $doSqlFunc->getLatestMessage(USERID);
 
+   if(PLACETYPE == 'user'){
+     $statusId = (int)$GL_LatestMessage['statusId'];
+   } else {
+     $statusId = 1;
+   }
+
+   //tbl_userから値がNullのcolumnを取得して配列に入れる
+   $nullColumnList = array();
+   $columnList = array('gender','birthDate','nickName');
+   $columnListNum = count($columnList);
+   for($i = 0; $i < $columnListNum; $i++){
+     if(is_null($GL_DbUserData[$columnList[$i]])){
+       array_push($nullColumnList, $columnList[$i]);
+     }
+   }
+   $nullColumnListNum = count($nullColumnList);
+
+   /**
+   * statusIdの属性
+   * 1:通常状態
+   * 2:Genderの返信待ち状態
+   * 3:Birthdateの返信待ち状態
+   */
+   //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
+   if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
+     $eventFrag = mt_rand(1,30); //debug, actually value 30
+   }
+
+   if($eventFrag == 1){
+     $targetColumn = mt_rand(0,$nullColumnListNum-1);
+     $sendContent = createSpecialContent($nullColumnList[$targetColumn]);
+   } else if($statusId !== 1){
+       switch($statusId){
+         case 3:
+         $replyMessage = "おっけ、おぼえたよ！";
+         break;
+       }
+       $sendContent = [
+         "type" => "text",
+         "text" => $replyMessage
+       ];
+       $GL_StatusId = 1;
+     } else {
+       //Typeごとに送信コンテンツを作成
+       switch(TYPE){
+         case 'text':
+         $sendContent = createTextContent();
+         break;
+         case 'sticker':
+         $sendContent = createStickerContent();
+         break;
+       }
+       $GL_StatusId = 1;
+     }
+ }
+
+ /**
+ * #3 送信処理
+ */
  $post_data = [
  	"replyToken" => REPLYTOKEN,
  	"messages" => [$sendContent]
@@ -46,36 +115,43 @@ $conf = new config();
 
  $doFunc->sendMessage($post_data);
 
-//追い出し
-if($globalTextType == 5){
-  $doFunc->getLeave(PLACETYPE, $jsonObj->{"events"}[0]->{"source"}->{PLACETYPE."Id"});
-}
+ //追い出し
+ if($GL_TextType == 5){
+   $doFunc->getLeave(PLACETYPE, $jsonObj->{"events"}[0]->{"source"}->{PLACETYPE."Id"});
+ }
 
-//メッセージをDBに格納
-$doSqlFunc->insertMessage(USERID, TEXT, 1);
+ //メッセージをDBに格納
+ $doSqlFunc->insertMessage(USERID, TEXT, $GL_StatusId);
 
-//DBにユーザーが存在しない場合は新規登録する
-if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
-  $doSqlFunc->insertUserData(USERID, DISPLAYNAME);
-}
+ //DBにユーザーが存在しない場合は新規登録する
+ if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
+   $doSqlFunc->insertUserData(USERID, DISPLAYNAME);
+ }
 
 
-
-function createTextContent($missiveText){
+/**
+ * テキストメッセージを作成する
+ *
+ * @return array $sendContent
+ *          コンテンツタイプ, テキストメッセージ
+ */
+function createTextContent(){
+  $conf = new config();
+  $conf->getLog(2);
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
   $typeCount = 0;
   $doSqlFunc= new doSqlFunc();
-  if(!is_null($GLOBALS['dbUserData']['userId'])){
-    $latestMessage = $doSqlFunc->getLatestMessage(USERID);
+
+  if(!is_null($GLOBALS['GL_DbUserData']['userId'])){
     //前回と同じメッセージの場合
-    if($latestMessage['message'] == TEXT){
+    if($GLOBALS['GL_LatestMessage']['message'] == TEXT){
       $textType = 7;
+    } else {
+      //感情タイプを内容から判定
+      $textType = isMatch($mPtJsonObj['pattern'], TEXT, $matchTypeLength);
     }
-  } else {
-    //感情タイプを内容から判定
-    $textType = isMatch($mPtJsonObj, $missiveText, $matchTypeLength);
   }
 
   $column = getColumnNumber($rPtJsonObj['pattern'], $textType);
@@ -89,7 +165,47 @@ function createTextContent($missiveText){
   	"type" => "text",
   	"text" => $replyMessage
   ];
-  $GLOBALS['globalTextType'] = $textType;
+  $GLOBALS['GL_TextType'] = $textType;
+
+  return $sendContent;
+}
+
+function createSpecialContent($targetCol){
+  //$targetCol = 'gender'; //debug
+  $conf = new config();
+  $sendContent = array();
+  switch($targetCol){
+    case 'gender':
+    $sendContent = [
+      "type" => "template",
+      "altText" => "this is a buttons template",
+      "template"=> [
+          "type" => "confirm",
+          "text" => "ところで君って女だっけ？男だっけ？おしえて！",
+          "actions" => [
+              [
+                "type" => "postback",
+                "label" => "男だよ",
+                "data" => "gender=1"
+              ],
+              [
+                "type" => "postback",
+                "label" => "女よ",
+                "data" => "gender=2"
+              ]
+          ]
+      ]
+    ];
+    $GLOBALS['GL_StatusId'] = 2; //まぁ本当は必要ないけど・・
+    break;
+    case 'birthDate':
+    $sendContent = [
+      "type" => "text",
+      "text" => "ねー君誕生日いつだっけ？"
+    ];
+    $GLOBALS['GL_StatusId'] = 3;
+    break;
+  }
 
   return $sendContent;
 }
@@ -134,11 +250,12 @@ function getDictJson($url) {
 function isMatch($targetArray, $targetString, $length){
 
   for($i=0;$i<$length;$i++){
-    $text = $targetArray['pattern'][$i][1];
+    $text = $targetArray[$i][1];
     if(preg_match("/$text/",$targetString)){
-      return $targetArray['pattern'][$i][0];
+      return $targetArray[$i][0];
     }
   }
+
   return 0;
 }
 
