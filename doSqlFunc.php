@@ -53,12 +53,22 @@ class doSqlFunc extends config{
     }
   }
 
+  /**
+   * ユーザーからPOSTBACK経由で送信されたデータでユーザー情報を更新する
+   *
+   * @access public
+   * @param int $userId
+   *          送信者の識別ID
+   * @param array $postData
+   *          送信されたPOSTDATA, 0:更新対象カラム, 1:更新内容
+   * @param int $statusId
+   *          イベントフラグ
+   */
   function insertPostData($userId, $postData){
     try{
       $prepare = $this->pdo->prepare("UPDATE `tbl_user` SET {$postData[0]} = ? WHERE `userId` = ?;");$this->getLog($prepare);
       $prepare->bindValue(1,$postData[1],PDO::PARAM_INT);
       $prepare->bindParam(2,$userId);
-
       $prepare->execute();
 
     } catch(PDOException $e){

@@ -18,15 +18,20 @@ $conf = new config();
  define('TYPE', $jsonObj->{"events"}[0]->{"message"}->{"type"}); //text,stickerなど
  define('TEXT', $jsonObj->{"events"}[0]->{"message"}->{"text"}); //送信されたメッセージ
  define('PLACETYPE', $jsonObj->{"events"}[0]->{"source"}->{"type"}); //room,group,user
+ if(PLACETYPE !== 'user'){
+   define('SENDERID', $jsonObj->{"events"}[0]->{"source"}->{PLACETYPE."Id"}); //ルーム,グループID
+   define('DISPLAYNAME', 'おまえ');
+ } else {
+   define('SENDERID', $jsonObj->{"events"}[0]->{"source"}->{"userId"}); //送信者の識別ID
+   define('DISPLAYNAME', $doFunc->getProfile(SENDERID)); //送信者のLINE上での表示名
+ }
  define('REPLYTOKEN', $jsonObj->{"events"}[0]->{"replyToken"}); //一度のみ使用可の返信用トークン
- define('USERID', $jsonObj->{"events"}[0]->{"source"}->{"userId"}); //送信者の識別ID
- define('DISPLAYNAME', $doFunc->getProfile(USERID)); //送信者の表示名
  define('POSTBACK', $jsonObj->{"events"}[0]->{"postback"}->{"data"}); //ボタンテンプレートの戻り値
 
  /** *=================================================================================================================
  * 返信内容作成処理
  * ================================================================================================================== */
- //if(USERID=='U015dc1cc36df8e76f4a313d8b1c3b769'){
+ //if(SENDERID=='U015dc1cc36df8e76f4a313d8b1c3b769'){
  // Write debug code
  //}
  /**
@@ -38,20 +43,21 @@ $conf = new config();
     "type" => "text",
     "text" => "おっけ、ありがとー"
    ];
-   $doSqlFunc->insertPostData(USERID,$postData);
+   $doSqlFunc->insertPostData(SENDERID,$postData);
 
  /**
  * #2 通常の返信作成処理
  */
  } else {
-   //DBからユーザー情報を取得
-   $GL_DbUserData = $doSqlFunc->getUserData(USERID);
-   //DBから最終メッセージを取得
-   $GL_LatestMessage = $doSqlFunc->getLatestMessage(USERID);
-
    if(PLACETYPE == 'user'){
+     //DBからユーザー情報を取得
+     $GL_DbUserData = $doSqlFunc->getUserData(SENDERID);
+     //DBから最終メッセージを取得
+     $GL_LatestMessage = $doSqlFunc->getLatestMessage(SENDERID);
+     //最終メッセージからユーザーステータスを取得する
      $statusId = (int)$GL_LatestMessage['statusId'];
    } else {
+     //グループの場合には待ち状態などのイベントは発生しないので1をセットする
      $statusId = 1;
    }
 
@@ -74,25 +80,29 @@ $conf = new config();
    */
    //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
    if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
-     $eventFrag = mt_rand(1,30); //debug, actually value 30
+     $eventFrag = mt_rand(1,5); //debug, actually value 30
    }
 
    if($eventFrag == 1){
      $targetColumn = mt_rand(0,$nullColumnListNum-1);
      $sendContent = createSpecialContent($nullColumnList[$targetColumn]);
    } else if($statusId !== 1){
+       //イベント待ち状態のユーザーに対する処理
        switch($statusId){
-         case 3:
-         $replyMessage = "おっけ、おぼえたよ！";
+         case 3: //Ask bitgh date
+         list($birthDate, $replyMessage) = validateBirthDate();
+         if(!is_null($birthDate)){
+           $doSqlFunc->insertPostData(SENDERID,array('birthDate', $birthDate));
+         }
          break;
        }
        $sendContent = [
          "type" => "text",
          "text" => $replyMessage
        ];
-       $GL_StatusId = 1;
+       $GL_StatusId = 1; //ユーザーを通常状態に戻す
      } else {
-       //Typeごとに送信コンテンツを作成
+       //通常ユーザーに対する処理（メッセージを読み取って返す）
        switch(TYPE){
          case 'text':
          $sendContent = createTextContent();
@@ -115,17 +125,20 @@ $conf = new config();
 
  $doFunc->sendMessage($post_data);
 
+ /**
+ * #4 送信後処理(DB操作etc)
+ */
  //追い出し
  if($GL_TextType == 5){
-   $doFunc->getLeave(PLACETYPE, $jsonObj->{"events"}[0]->{"source"}->{PLACETYPE."Id"});
+   $doFunc->getLeave(PLACETYPE, SENDERID);
  }
 
  //メッセージをDBに格納
- $doSqlFunc->insertMessage(USERID, TEXT, $GL_StatusId);
+ $doSqlFunc->insertMessage(SENDERID, TEXT, $GL_StatusId); //Todo:ハッシュ化
 
  //DBにユーザーが存在しない場合は新規登録する
  if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
-   $doSqlFunc->insertUserData(USERID, DISPLAYNAME);
+   $doSqlFunc->insertUserData(SENDERID, DISPLAYNAME);
  }
 
 
@@ -136,23 +149,23 @@ $conf = new config();
  *          コンテンツタイプ, テキストメッセージ
  */
 function createTextContent(){
-  $conf = new config();
-  $conf->getLog(2);
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
   $typeCount = 0;
-  $doSqlFunc= new doSqlFunc();
-
   if(!is_null($GLOBALS['GL_DbUserData']['userId'])){
     //前回と同じメッセージの場合
-    if($GLOBALS['GL_LatestMessage']['message'] == TEXT){
+    if($GLOBALS['GL_LatestMessage']['message'] == TEXT){ //Todo:グループの場合
       $textType = 7;
     } else {
       //感情タイプを内容から判定
       $textType = isMatch($mPtJsonObj['pattern'], TEXT, $matchTypeLength);
-    }
-  }
+    };
+  } else {
+    $textType = isMatch($mPtJsonObj['pattern'], TEXT, $matchTypeLength);
+  };
+
+
 
   $column = getColumnNumber($rPtJsonObj['pattern'], $textType);
   //返信メッセージ番号をランダムに選択
@@ -178,7 +191,7 @@ function createSpecialContent($targetCol){
     case 'gender':
     $sendContent = [
       "type" => "template",
-      "altText" => "this is a buttons template",
+      "altText" => "ちょ、スマホのLINEでみてこれ",
       "template"=> [
           "type" => "confirm",
           "text" => "ところで君って女だっけ？男だっけ？おしえて！",
@@ -201,7 +214,7 @@ function createSpecialContent($targetCol){
     case 'birthDate':
     $sendContent = [
       "type" => "text",
-      "text" => "ねー君誕生日いつだっけ？"
+      "text" => "ねー君誕生日いつだっけ？8桁で教えてね！"
     ];
     $GLOBALS['GL_StatusId'] = 3;
     break;
@@ -248,7 +261,6 @@ function getDictJson($url) {
  * @return int
  */
 function isMatch($targetArray, $targetString, $length){
-
   for($i=0;$i<$length;$i++){
     $text = $targetArray[$i][1];
     if(preg_match("/$text/",$targetString)){
@@ -276,4 +288,26 @@ function getColumnNumber($searchArray ,$typeNum){
   return $pos;
 }
 
+function validateBirthDate(){
+  $error = true;
+  $validateDate = mb_convert_kana(TEXT, "n", "utf-8");
+  if(strlen($validateDate) !== 8){
+    $replyMsg = "8桁いうとるやろころすぞ";
+    $error = false;
+    $validateDate = Null;
+  } else {
+    $Y = substr($validateDate,0,4);
+    $m = substr($validateDate,4,2);
+    $d = substr($validateDate,6);
+
+    if(checkdate($m, $d, $Y)){
+      $replyMsg = 'おっけ、おぼえたよ！';
+    } else {
+      $replyMsg = "まじめにやれぼけ";
+      $error = false;
+      $validateDate = Null;
+    }
+  }
+  return $validateMessage = array($validateDate, $replyMsg);
+}
 ?>
