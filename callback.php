@@ -20,7 +20,6 @@ $conf = new config();
  define('PLACETYPE', $jsonObj->{"events"}[0]->{"source"}->{"type"}); //room,group,user
  if(PLACETYPE !== 'user'){
    define('SENDERID', $jsonObj->{"events"}[0]->{"source"}->{PLACETYPE."Id"}); //ルーム,グループID
-   define('DISPLAYNAME', 'おまえ');
  } else {
    define('SENDERID', $jsonObj->{"events"}[0]->{"source"}->{"userId"}); //送信者の識別ID
    define('DISPLAYNAME', $doFunc->getProfile(SENDERID)); //送信者のLINE上での表示名
@@ -61,15 +60,28 @@ $conf = new config();
      $statusId = 1;
    }
 
-   //tbl_userから値がNullのcolumnを取得して配列に入れる
+   if(PLACETYPE == 'user'){
+     if(!is_null($GL_DbUserData['nickName'])){
+       $GL_CallName = $GL_DbUserData['nickName'];
+     } else {
+       $GL_CallName = DISPLAYNAME;
+     }
+
+   } else {
+     $GL_CallName = 'みんな';
+   }
+
+   //tbl_userから値がNullのカラムを取得して配列に入れる
    $nullColumnList = array();
-   $columnList = array('gender','birthDate','nickName');
+   $columnList = array('gender','birthDate');
    $columnListNum = count($columnList);
    for($i = 0; $i < $columnListNum; $i++){
      if(is_null($GL_DbUserData[$columnList[$i]])){
+       //nullのカラム名を配列に入れていく
        array_push($nullColumnList, $columnList[$i]);
      }
    }
+   //nullカラム個数
    $nullColumnListNum = count($nullColumnList);
 
    /**
@@ -80,12 +92,24 @@ $conf = new config();
    */
    //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
    if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
-     $eventFrag = mt_rand(1,5); //debug, actually value 30
+     $eventFrag = mt_rand(1,30); //debug, actually value 30
+   }
+   //たまにあだ名をつける
+   if($eventFrag !== 1){
+     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user'){
+       $nickNameFrag = mt_rand(1,30);
+     }
    }
 
    if($eventFrag == 1){
      $targetColumn = mt_rand(0,$nullColumnListNum-1);
      $sendContent = createSpecialContent($nullColumnList[$targetColumn]);
+   } else if ($nickNameFrag == 1){
+     $sendContent = [
+       "type" => "text",
+       "text" => "私たちだいぶ仲良くなってきたからわたしが君のあだ名つけてあげるね！"
+     ];
+     $GLOBALS['GL_StatusId'] = 4;
    } else if($statusId !== 1){
        //イベント待ち状態のユーザーに対する処理
        switch($statusId){
@@ -124,6 +148,15 @@ $conf = new config();
  	];
 
  $doFunc->sendMessage($post_data);
+
+ //ニックネーム送信
+ if($GL_StatusId == 4){
+   $nickName = createNickName();
+   $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => 'えっとねー']]]);
+   $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => $nickName.'！きにいった？']]]);
+   $doSqlFunc->insertPostData(SENDERID,array('nickName',$nickName));
+   $GL_StatusId = 1;
+ }
 
  /**
  * #4 送信後処理(DB操作etc)
@@ -173,7 +206,7 @@ function createTextContent(){
   $replyMessage = $rPtJsonObj['pattern'][$replyNumber][1];
 
   //置換
-  $replyMessage = str_replace("*name*", DISPLAYNAME,$replyMessage);
+  $replyMessage = str_replace("*name*", $GLOBALS['GL_CallName'], $replyMessage);
   $sendContent = [
   	"type" => "text",
   	"text" => $replyMessage
@@ -310,4 +343,13 @@ function validateBirthDate(){
   }
   return $validateMessage = array($validateDate, $replyMsg);
 }
+
+function createNickName(){
+  $firstName = getDictJson('json/firstName.json');
+  $lastName = getDictJson('json/lastName.json');
+  $nickName = $firstName[mt_rand(0,count($firstName)-1)][0] . $lastName[mt_rand(0,count($lastName)-1)][0];
+
+  return $nickName;
+}
+
 ?>

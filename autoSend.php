@@ -3,7 +3,7 @@
 require_once('setting.php');
 require_once('doFunc.php');
 
-$doFunc = new doFunc();
+$doSqlFunc = new doSqlFunc();
 
 $message = [
   	"type" => "text",
@@ -15,7 +15,7 @@ $post_data2 = [
  "messages" => [$message]
  ];
 
-$doFunc->pushMessage($post_data2);
+$doSqlFunc->pushMessage($post_data2);
 
 
 

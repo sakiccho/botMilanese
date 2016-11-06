@@ -54,7 +54,7 @@ class doSqlFunc extends config{
   }
 
   /**
-   * ユーザーからPOSTBACK経由で送信されたデータでユーザー情報を更新する
+   * ユーザー情報を更新する
    *
    * @access public
    * @param int $userId
