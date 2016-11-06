@@ -71,13 +71,15 @@ $conf = new config();
      $GL_CallName = 'みんな';
    }
 
-   //tbl_userから値がNullのカラムを取得して配列に入れる
+   /**
+   * tbl_userに空のカラムがある時は一定確率でユーザー情報を尋ねるイベントを発生させる
+   */
    $nullColumnList = array();
    $columnList = array('gender','birthDate');
    $columnListNum = count($columnList);
    for($i = 0; $i < $columnListNum; $i++){
      if(is_null($GL_DbUserData[$columnList[$i]])){
-       //nullのカラム名を配列に入れていく
+       //値がNullのカラム名を取得して配列に入れる
        array_push($nullColumnList, $columnList[$i]);
      }
    }
@@ -89,11 +91,13 @@ $conf = new config();
    * 1:通常状態
    * 2:Genderの返信待ち状態
    * 3:Birthdateの返信待ち状態
+   * 4:Nicknameの処理中状態
    */
    //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
    if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
      $eventFrag = mt_rand(1,30); //debug, actually value 30
    }
+
    //たまにあだ名をつける
    if($eventFrag !== 1){
      if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user'){
@@ -242,7 +246,7 @@ function createSpecialContent($targetCol){
           ]
       ]
     ];
-    $GLOBALS['GL_StatusId'] = 2; //まぁ本当は必要ないけど・・
+    //$GLOBALS['GL_StatusId'] = 2; //まぁ本当は必要ないけど・・
     break;
     case 'birthDate':
     $sendContent = [
