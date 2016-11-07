@@ -86,7 +86,6 @@ class doSqlFunc extends config{
    *          取得されたユーザー情報
    */
   function getUserData($userId){
-
     //ユーザー存在チェック
     $sql = "SELECT * FROM `tbl_user` WHERE `userId` = 'U015dc1cc36df8e76f4a313d8b1c3b769';";
     $result = $this->pdo->query($sql);
@@ -138,6 +137,28 @@ class doSqlFunc extends config{
     //存在しないユーザーの場合インサートする
     $inserSql = "INSERT INTO `tbl_user`(`userId`, `displayName`) VALUES ('{$userId}', '{$displayName}');";
     $insertResult = $this->pdo->query($inserSql);
+  }
+
+
+  /**
+   * 誕生日のユーザーを取得
+   *
+   * @access public
+   * @param string $dotay
+   *          今日の日付を取得
+   * @return array birthUser
+   *          今日が誕生日のユーザーリスト
+   */
+  function getBirthUser($today){
+    $sql = "SELECT `userId` FROM `tbl_user` WHERE `birthDate` = '{$today}';";
+    $stmt = $this->pdo->query($sql);
+    $birthUser = array();
+    while($result = $stmt->fetch(PDO::FETCH_ASSOC)){
+        //$resultに格納した連想配列のplanを抽出し、$rowsに格納。planがある限り、$rowsに追加していく
+        array_push($birthUser, $result['userId']);
+    }
+
+    return $birthUser;
   }
 
 }
