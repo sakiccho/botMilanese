@@ -25,10 +25,13 @@ $conf = new config();
 
 
 $today = date('y-m-d');
-
+$birthMessage = "誕生日おめでとうございます。その優しい笑顔でずっと元気でいて下さいね。";
 $birthUser = $doSqlFunc->getBirthUser($today);
-$conf->getLog($birthUser);
-//$doSqlFunc->pushMessage($post_data2);
+
+$birthUserNum = count($birthUser);
+for($i=0;$i<$birthUserNum;$i++){
+  $doFunc->pushMessage(["to" => $birthUser[$i],"messages" => [["type" => "text","text" => $birthMessage]]]);
+}
 
 
 

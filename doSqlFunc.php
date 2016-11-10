@@ -116,7 +116,7 @@ class doSqlFunc extends config{
     $lastMessageResult = $result -> fetch(PDO::FETCH_ASSOC);
     $dbMessage = array(
       'statusId' => $lastMessageResult['statusId'],
-      'message' => $lastMessageResult['message'],
+      'message' => $lastMessageResult['message']
     );
     return $dbMessage;
   }
@@ -150,14 +150,17 @@ class doSqlFunc extends config{
    *          今日が誕生日のユーザーリスト
    */
   function getBirthUser($today){
-    $sql = "SELECT `userId` FROM `tbl_user` WHERE `birthDate` = '{$today}';";
+    $sql = "SELECT `userId`, `displayName` FROM `tbl_user` WHERE `birthDate` = '{$today} order by userId asc';";
     $stmt = $this->pdo->query($sql);
     $birthUser = array();
     while($result = $stmt->fetch(PDO::FETCH_ASSOC)){
-        //$resultに格納した連想配列のplanを抽出し、$rowsに格納。planがある限り、$rowsに追加していく
-        array_push($birthUser, $result['userId']);
+        $birthUser += array(
+          'userId' => $result['userId'],
+          'name' => $result['displayName']
+        );
     }
-
+    $conf = new config();
+    $conf->getLog($birthUser);
     return $birthUser;
   }
 
