@@ -49,52 +49,48 @@ $conf = new config();
    "type" => "template",
    "altText" => "ちょ、スマホのLINEでみてこれ",
    "template"=> [
-       "type" => "carousel",
-       "columns" => [
-            "thumbnailImageUrl" => "https://pupu-beyblade.ssl-lolipop.jp/botMilanese/img/template/temp1.jpg",
-            "title" => "this is menu",
-            "text" => "description",
-            "actions" => [
-                [
-                    "type" => "postback",
-                    "label" => "Buy",
-                    "data" => "action=buy&itemid=111"
-                ],
-                [
-                    "type" => "postback",
-                    "label" => "Add to cart",
-                    "data" => "action=add&itemid=111"
-                ],
-                [
-                    "type" => "uri",
-                    "label" => "View detail",
-                    "uri" => "http://example.com/page/111"
-                ]
-            ]
-          ],
-          [
-            "thumbnailImageUrl" => "https://pupu-beyblade.ssl-lolipop.jp/botMilanese/img/template/temp1.jpg",
-            "title" => "this is menu",
-            "text" => "description",
-            "actions" => [
-                [
-                    "type" => "postback",
-                    "label" => "Buy",
-                    "data" => "action=buy&itemid=222"
-                ],
-                [
-                    "type" => "postback",
-                    "label" => "Add to cart",
-                    "data" => "action=add&itemid=222"
-                ],
-                [
-                    "type" => "uri",
-                    "label" => "View detail",
-                    "uri" => "http://example.com/page/222"
-                ]
-            ]
+            "type" => "carousel",
+              "columns" => [
+                "text" => "description",
+                "actions" => [
+                    [
+                        "type" => "postback",
+                        "label" => "Buy",
+                        "data" => "action=buy&itemid=111"
+                    ],
+                    [
+                        "type" => "postback",
+                        "label" => "Buy",
+                        "data" => "action=buy&itemid=111"
+                    ],
+                    [
+                        "type" => "uri",
+                        "label" => "Buy",
+                        "uri" => "action=buy&itemid=111"
+                    ]
+                  ]
+                ],[
+                  "text" => "description",
+                  "actions" => [
+                      [
+                          "type" => "postback",
+                          "label" => "Buy",
+                          "data" => "action=buy&itemid=111"
+                      ],
+                      [
+                          "type" => "postback",
+                          "label" => "Buy",
+                          "data" => "action=buy&itemid=111"
+                      ],
+                      [
+                          "type" => "uri",
+                          "label" => "Buy",
+                          "uri" => "action=buy&itemid=111"
+                      ]
+                    ]
+                  ]
        ]
-   ]
+
  ];
  $doFunc->pushMessage(["to" => 'U015dc1cc36df8e76f4a313d8b1c3b769',"messages" => [$sendContent]]);
 
