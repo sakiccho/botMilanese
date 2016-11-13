@@ -15,6 +15,8 @@ $conf = new config();
 * ================================================================================================================== */
  $json_string = file_get_contents('php://input');
  $jsonObj = json_decode($json_string);
+ $eventType = $jsonObj->{"events"}[0]->{"type"};
+
  define('TYPE', $jsonObj->{"events"}[0]->{"message"}->{"type"}); //text,stickerなど
  define('TEXT', $jsonObj->{"events"}[0]->{"message"}->{"text"}); //送信されたメッセージ
  define('PLACETYPE', $jsonObj->{"events"}[0]->{"source"}->{"type"}); //room,group,user
@@ -27,12 +29,75 @@ $conf = new config();
  define('REPLYTOKEN', $jsonObj->{"events"}[0]->{"replyToken"}); //一度のみ使用可の返信用トークン
  define('POSTBACK', $jsonObj->{"events"}[0]->{"postback"}->{"data"}); //ボタンテンプレートの戻り値
 
+
+ /** *=================================================================================================================
+ * フォローイベント時
+ * ================================================================================================================== */
+ if($eventType == 'unfollow'){
+   $doSqlFunc->changeFollowStatus(SENDERID,0);
+ } else if($eventType == 'follow'){
+   $doSqlFunc->changeFollowStatus(SENDERID,1);
+ }
+
  /** *=================================================================================================================
  * 返信内容作成処理
  * ================================================================================================================== */
- //if(SENDERID=='U015dc1cc36df8e76f4a313d8b1c3b769'){
- // Write debug code
- //}
+ // if(SENDERID=='U015dc1cc36df8e76f4a313d8b1c3b769'){
+ //
+ // }
+ $sendContent = [
+   "type" => "template",
+   "altText" => "ちょ、スマホのLINEでみてこれ",
+   "template"=> [
+       "type" => "carousel",
+       "columns" => [
+            "thumbnailImageUrl" => "https://pupu-beyblade.ssl-lolipop.jp/botMilanese/img/template/temp1.jpg",
+            "title" => "this is menu",
+            "text" => "description",
+            "actions" => [
+                [
+                    "type" => "postback",
+                    "label" => "Buy",
+                    "data" => "action=buy&itemid=111"
+                ],
+                [
+                    "type" => "postback",
+                    "label" => "Add to cart",
+                    "data" => "action=add&itemid=111"
+                ],
+                [
+                    "type" => "uri",
+                    "label" => "View detail",
+                    "uri" => "http://example.com/page/111"
+                ]
+            ]
+          ],
+          [
+            "thumbnailImageUrl" => "https://pupu-beyblade.ssl-lolipop.jp/botMilanese/img/template/temp1.jpg",
+            "title" => "this is menu",
+            "text" => "description",
+            "actions" => [
+                [
+                    "type" => "postback",
+                    "label" => "Buy",
+                    "data" => "action=buy&itemid=222"
+                ],
+                [
+                    "type" => "postback",
+                    "label" => "Add to cart",
+                    "data" => "action=add&itemid=222"
+                ],
+                [
+                    "type" => "uri",
+                    "label" => "View detail",
+                    "uri" => "http://example.com/page/222"
+                ]
+            ]
+       ]
+   ]
+ ];
+ $doFunc->pushMessage(["to" => 'U015dc1cc36df8e76f4a313d8b1c3b769',"messages" => [$sendContent]]);
+
  /**
  * #1 POSTBACKにデータが存在する場合
  */
@@ -95,10 +160,10 @@ $conf = new config();
    */
    //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
    if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
-     $eventFrag = mt_rand(1,30); //debug, actually value 30
+     $eventFrag = mt_rand(1,30);
    }
 
-   //たまにあだ名をつける
+   //たまにニックネームを更新する
    if($eventFrag !== 1){
      if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user'){
        $nickNameFrag = mt_rand(1,30);
@@ -179,6 +244,9 @@ $conf = new config();
  }
 
 
+ /** *=================================================================================================================
+ * ユーザー定義関数
+ * ================================================================================================================== */
 /**
  * テキストメッセージを作成する
  *

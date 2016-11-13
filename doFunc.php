@@ -36,13 +36,13 @@ class doFunc extends config {
    * @param array $post_data
    */
   function pushMessage($post_data){
-
     $ch = curl_init("https://api.line.me/v2/bot/message/push");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, $this->header);
     $result = curl_exec($ch);
     curl_close($ch);
+    $this->getLog($result);
   }
 
 

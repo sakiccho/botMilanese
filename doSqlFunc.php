@@ -66,7 +66,7 @@ class doSqlFunc extends config{
    */
   function insertPostData($userId, $postData){
     try{
-      $prepare = $this->pdo->prepare("UPDATE `tbl_user` SET {$postData[0]} = ? WHERE `userId` = ?;");$this->getLog($prepare);
+      $prepare = $this->pdo->prepare("UPDATE `tbl_user` SET {$postData[0]} = ? WHERE `userId` = ?;");
       $prepare->bindValue(1,$postData[1],PDO::PARAM_INT);
       $prepare->bindParam(2,$userId);
       $prepare->execute();
@@ -88,16 +88,9 @@ class doSqlFunc extends config{
   function getUserData($userId){
     //ユーザー存在チェック
     $sql = "SELECT * FROM `tbl_user` WHERE `userId` = 'U015dc1cc36df8e76f4a313d8b1c3b769';";
-    $result = $this->pdo->query($sql);
-    $userResult = $result -> fetch(PDO::FETCH_ASSOC);
-    $dbProfile = array(
-      'userId' => $userResult['userId'],
-      'displayName' => $userResult['displayName'],
-      'gender' => $userResult['gender'],
-      'birthDate' => $userResult['birthDate'],
-      'nickName' => $userResult['nickName']
-    );
-    return $dbProfile;
+    $stmt = $this->pdo->query($sql);
+    $result = $stmt -> fetch(PDO::FETCH_ASSOC);
+    return $result;
   }
 
   /**
@@ -112,31 +105,39 @@ class doSqlFunc extends config{
   function getLatestMessage($userId){
     //ユーザー存在チェック
     $sql = "SELECT `statusId`, `message` FROM `tbl_message` WHERE `userId` = '{$userId}' ORDER BY `sendDate` DESC LIMIT 0,1;";
-    $result = $this->pdo->query($sql);
-    $lastMessageResult = $result -> fetch(PDO::FETCH_ASSOC);
-    $dbMessage = array(
-      'statusId' => $lastMessageResult['statusId'],
-      'message' => $lastMessageResult['message']
-    );
-    return $dbMessage;
+    $stmt = $this->pdo->query($sql);
+    $result = $stmt -> fetch(PDO::FETCH_ASSOC);
+    return $result;
   }
 
   /**
-   * メッセージ登録処理用の関数
-   *
-   * メッセージ登録後、送信者情報も更新する。
+   * ユーザー情報を登録する
    *
    * @access public
    * @param string $userId
    *          送信者の識別ID
    * @param string $displayName
    *          送信者の表示名
-   * @todo executeに変更、Injection対策追加
    */
   function insertUserData($userId, $displayName){
     //存在しないユーザーの場合インサートする
     $inserSql = "INSERT INTO `tbl_user`(`userId`, `displayName`) VALUES ('{$userId}', '{$displayName}');";
     $insertResult = $this->pdo->query($inserSql);
+  }
+
+
+  /**
+   * Follow Statusを更新する
+   *
+   * @access public
+   * @param string $userId
+   *          送信者の識別ID
+   * @param int $followStatus
+   *          更新後のstatus
+   */
+  function changeFollowStatus($userId, $followStatus){
+    $sql = "UPDATE `tbl_user` SET `followStatus` = {$followStatus} WHERE `userId` = '{$userId}';";
+    $stmt = $this->pdo->query($sql);
   }
 
 
@@ -150,18 +151,10 @@ class doSqlFunc extends config{
    *          今日が誕生日のユーザーリスト
    */
   function getBirthUser($today){
-    $sql = "SELECT `userId`, `displayName` FROM `tbl_user` WHERE `birthDate` = '{$today} order by userId asc';";
+    $sql = "SELECT `userId`, `displayName` FROM `tbl_user` WHERE `birthDate` = '{$today}' ORDER BY `userId` ASC;";
     $stmt = $this->pdo->query($sql);
-    $birthUser = array();
-    while($result = $stmt->fetch(PDO::FETCH_ASSOC)){
-        $birthUser += array(
-          'userId' => $result['userId'],
-          'name' => $result['displayName']
-        );
-    }
-    $conf = new config();
-    $conf->getLog($birthUser);
-    return $birthUser;
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $result;
   }
 
 }
