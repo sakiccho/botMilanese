@@ -1,1 +1,1 @@
-string(142) "{"message":"A message (messages[0]) in the request body is invalid","details":[{"message":"invalid template message","property":"template"}]}"
+string(113) "SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo failed: nodename nor servname provided, or not known"

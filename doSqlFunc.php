@@ -103,7 +103,6 @@ class doSqlFunc extends config{
    *          イベントID,メッセージ
    */
   function getLatestMessage($userId){
-    //ユーザー存在チェック
     $sql = "SELECT `statusId`, `message` FROM `tbl_message` WHERE `userId` = '{$userId}' ORDER BY `sendDate` DESC LIMIT 0,1;";
     $stmt = $this->pdo->query($sql);
     $result = $stmt -> fetch(PDO::FETCH_ASSOC);
@@ -155,6 +154,32 @@ class doSqlFunc extends config{
     $stmt = $this->pdo->query($sql);
     $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     return $result;
+  }
+
+  function changeEventStatus($userId, $status){
+    try{
+      $prepare = $this->pdo->prepare("UPDATE `tbl_user` SET `statusId` = ? WHERE `userId` = ?;");
+      $prepare->bindValue(1,$status,PDO::PARAM_INT);
+      $prepare->bindParam(2,$userId);
+      $prepare->execute();
+
+    } catch(PDOException $e){
+      $this->getLog($e->getMessage());
+    }
+  }
+
+  function getCityInfo($cityName){
+    $cityName = $cityName.'%';
+    try{
+      $prepare = $this->pdo->prepare("SELECT * FROM `mst_cityID` WHERE `name` LIKE ? GROUP BY `id`;");
+      $prepare->bindParam(1,$cityName);
+      $prepare->execute();
+      $result = $prepare->fetchAll(PDO::FETCH_ASSOC);
+
+      return $result;
+    } catch(PDOException $e){
+      $this->getLog($e->getMessage());
+    }
   }
 
 }

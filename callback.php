@@ -29,7 +29,6 @@ $conf = new config();
  define('REPLYTOKEN', $jsonObj->{"events"}[0]->{"replyToken"}); //一度のみ使用可の返信用トークン
  define('POSTBACK', $jsonObj->{"events"}[0]->{"postback"}->{"data"}); //ボタンテンプレートの戻り値
 
-
  /** *=================================================================================================================
  * フォローイベント時
  * ================================================================================================================== */
@@ -45,54 +44,118 @@ $conf = new config();
  // if(SENDERID=='U015dc1cc36df8e76f4a313d8b1c3b769'){
  //
  // }
- $sendContent = [
-   "type" => "template",
-   "altText" => "ちょ、スマホのLINEでみてこれ",
-   "template"=> [
-            "type" => "carousel",
-              "columns" => [
-                "text" => "description",
-                "actions" => [
-                    [
-                        "type" => "postback",
-                        "label" => "Buy",
-                        "data" => "action=buy&itemid=111"
-                    ],
-                    [
-                        "type" => "postback",
-                        "label" => "Buy",
-                        "data" => "action=buy&itemid=111"
-                    ],
-                    [
-                        "type" => "uri",
-                        "label" => "Buy",
-                        "uri" => "action=buy&itemid=111"
-                    ]
-                  ]
-                ],[
-                  "text" => "description",
-                  "actions" => [
-                      [
-                          "type" => "postback",
-                          "label" => "Buy",
-                          "data" => "action=buy&itemid=111"
-                      ],
-                      [
-                          "type" => "postback",
-                          "label" => "Buy",
-                          "data" => "action=buy&itemid=111"
-                      ],
-                      [
-                          "type" => "uri",
-                          "label" => "Buy",
-                          "uri" => "action=buy&itemid=111"
-                      ]
-                    ]
-                  ]
-       ]
 
- ];
- $doFunc->pushMessage(["to" => 'U015dc1cc36df8e76f4a313d8b1c3b769',"messages" => [$sendContent]]);
+ if(PLACETYPE == 'user'){
+   //DBからユーザー情報を取得
+   $GL_DbUserData = $doSqlFunc->getUserData(SENDERID);
+   //ユーザーステータスを取得する
+   $statusId = (int)$GL_DbUserData['statusId'];
+ }
+
+ //DBから最終メッセージを取得
+ $GL_LatestMessage = $doSqlFunc->getLatestMessage(SENDERID);
+
+ /**
+ * グループにおけるイベントフラグ
+ * 1:通常状態
+ * 2:天気イベント待ち状態
+ */
+ $groupEventStatus = 1;
+ $whileWeather = false;
+ if(preg_match('/天気|てんき/', TEXT)){
+   $whileWeather = true;
+   if(!is_null($GL_DbUserData['location'])){
+     $weather = getWeather('明日', $GL_DbUserData['location']);
+     $weather = str_replace('-','',$weather);
+     $post_data = [
+       "replyToken" => REPLYTOKEN,
+       "messages" => [
+         [
+            "type" => "text",
+            "text" => $weather
+         ]
+       ]
+     ];
+     $doFunc->sendMessage($post_data);
+   } else {
+     $post_data = [
+       "replyToken" => REPLYTOKEN,
+       "messages" => [
+         [
+            "type" => "text",
+            "text" => "どこ住みだっけ"
+         ]
+       ]
+     ];
+     $doFunc->sendMessage($post_data);
+     $groupEventStatus = 2;
+   }
+ }
+
+ if($GL_LatestMessage['statusId'] == 2){
+   $weather = getWeather('明日', TEXT);
+   $weather = str_replace('-','',$weather);
+   $post_data = [
+     "replyToken" => REPLYTOKEN,
+     "messages" => [
+       [
+          "type" => "text",
+          "text" => $weather
+       ]
+     ]
+   ];
+   $doFunc->sendMessage($post_data);
+   $groupEventStatus = 1;
+ }
+
+ // $sendContent = [
+ //   "type" => "template",
+ //   "altText" => "ちょ、スマホのLINEでみてこれ",
+ //   "template"=> [
+ //            "type" => "carousel",
+ //              "columns" => [
+ //                "text" => "description",
+ //                "actions" => [
+ //                    [
+ //                        "type" => "postback",
+ //                        "label" => "Buy",
+ //                        "data" => "action=buy&itemid=111"
+ //                    ],
+ //                    [
+ //                        "type" => "postback",
+ //                        "label" => "Buy",
+ //                        "data" => "action=buy&itemid=111"
+ //                    ],
+ //                    [
+ //                        "type" => "uri",
+ //                        "label" => "Buy",
+ //                        "uri" => "action=buy&itemid=111"
+ //                    ]
+ //                  ]
+ //                ],[
+ //                  "text" => "description",
+ //                  "actions" => [
+ //                      [
+ //                          "type" => "postback",
+ //                          "label" => "Buy",
+ //                          "data" => "action=buy&itemid=111"
+ //                      ],
+ //                      [
+ //                          "type" => "postback",
+ //                          "label" => "Buy",
+ //                          "data" => "action=buy&itemid=111"
+ //                      ],
+ //                      [
+ //                          "type" => "uri",
+ //                          "label" => "Buy",
+ //                          "uri" => "action=buy&itemid=111"
+ //                      ]
+ //                    ]
+ //                  ]
+ //       ]
+ //
+ // ];
+ // $doFunc->pushMessage(["to" => 'U015dc1cc36df8e76f4a313d8b1c3b769',"messages" => [$sendContent]]);
 
  /**
  * #1 POSTBACKにデータが存在する場合
@@ -104,22 +167,12 @@ $conf = new config();
     "text" => "おっけ、ありがとー"
    ];
    $doSqlFunc->insertPostData(SENDERID,$postData);
+   $doSqlFunc->changeEventStatus(SENDERID, 1);
 
  /**
  * #2 通常の返信作成処理
  */
  } else {
-   if(PLACETYPE == 'user'){
-     //DBからユーザー情報を取得
-     $GL_DbUserData = $doSqlFunc->getUserData(SENDERID);
-     //DBから最終メッセージを取得
-     $GL_LatestMessage = $doSqlFunc->getLatestMessage(SENDERID);
-     //最終メッセージからユーザーステータスを取得する
-     $statusId = (int)$GL_LatestMessage['statusId'];
-   } else {
-     //グループの場合には待ち状態などのイベントは発生しないので1をセットする
-     $statusId = 1;
-   }
 
    if(PLACETYPE == 'user'){
      if(!is_null($GL_DbUserData['nickName'])){
@@ -135,18 +188,19 @@ $conf = new config();
    /**
    * tbl_userに空のカラムがある時は一定確率でユーザー情報を尋ねるイベントを発生させる
    */
-   $nullColumnList = array();
-   $columnList = array('gender','birthDate');
-   $columnListNum = count($columnList);
-   for($i = 0; $i < $columnListNum; $i++){
-     if(is_null($GL_DbUserData[$columnList[$i]])){
-       //値がNullのカラム名を取得して配列に入れる
-       array_push($nullColumnList, $columnList[$i]);
+   if(PLACETYPE == 'user'){
+     $nullColumnList = array();
+     $columnList = array('gender','birthDate','location');
+     $columnListNum = count($columnList);
+     for($i = 0; $i < $columnListNum; $i++){
+       if(is_null($GL_DbUserData[$columnList[$i]])){
+         //値がNullのカラム名を取得して配列に入れる
+         array_push($nullColumnList, $columnList[$i]);
+       }
      }
+     //nullカラム個数
+     $nullColumnListNum = count($nullColumnList);
    }
-   //nullカラム個数
-   $nullColumnListNum = count($nullColumnList);
-
    /**
    * statusIdの属性
    * 1:通常状態
@@ -160,28 +214,37 @@ $conf = new config();
    }
 
    //たまにニックネームを更新する
-   if($eventFrag !== 1){
-     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user'){
-       $nickNameFrag = mt_rand(1,30);
+   if($eventFrag !== 1 && PLACETYPE == 'user' && $GL_LatestMessage['statusId'] == 1 && $groupEventStatus == 1){
+     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user' && $whileWeather == false){
+       $nickNameFrag = mt_rand(1,5);
      }
    }
-
    if($eventFrag == 1){
+
      $targetColumn = mt_rand(0,$nullColumnListNum-1);
      $sendContent = createSpecialContent($nullColumnList[$targetColumn]);
+
    } else if ($nickNameFrag == 1){
      $sendContent = [
        "type" => "text",
        "text" => "私たちだいぶ仲良くなってきたからわたしが君のあだ名つけてあげるね！"
      ];
-     $GLOBALS['GL_StatusId'] = 4;
-   } else if($statusId !== 1){
+   } else if($statusId !== 1 && PLACETYPE == 'user'){
        //イベント待ち状態のユーザーに対する処理
        switch($statusId){
-         case 3: //Ask bitgh date
+         case 3: //Ask Bitgh Date
          list($birthDate, $replyMessage) = validateBirthDate();
          if(!is_null($birthDate)){
            $doSqlFunc->insertPostData(SENDERID,array('birthDate', $birthDate));
+         }
+         break;
+         case 4: //Ask Location
+         $cityInfo = $doSqlFunc->getCityInfo(Roman2Kana(TEXT, 'romaji'));
+         if(!is_null($cityInfo[0]['name'])){
+           $replyMessage = 'そうそう。'.Roman2Kana($cityInfo[0]['name'],'kana').'だったね。';
+           $doSqlFunc->insertPostData(SENDERID,array('location', $cityInfo[0]['name']));
+         } else {
+           $replyMessage = 'どこやねん';
          }
          break;
        }
@@ -189,7 +252,7 @@ $conf = new config();
          "type" => "text",
          "text" => $replyMessage
        ];
-       $GL_StatusId = 1; //ユーザーを通常状態に戻す
+       $doSqlFunc->changeEventStatus(SENDERID, 1);
      } else {
        //通常ユーザーに対する処理（メッセージを読み取って返す）
        switch(TYPE){
@@ -200,7 +263,6 @@ $conf = new config();
          $sendContent = createStickerContent();
          break;
        }
-       $GL_StatusId = 1;
      }
  }
 
@@ -215,12 +277,11 @@ $conf = new config();
  $doFunc->sendMessage($post_data);
 
  //ニックネーム送信
- if($GL_StatusId == 4){
+ if($nickNameFrag == 1){
    $nickName = createNickName();
    $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => 'えっとねー']]]);
    $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => $nickName.'！きにいった？']]]);
    $doSqlFunc->insertPostData(SENDERID,array('nickName',$nickName));
-   $GL_StatusId = 1;
  }
 
  /**
@@ -232,7 +293,7 @@ $conf = new config();
  }
 
  //メッセージをDBに格納
- $doSqlFunc->insertMessage(SENDERID, TEXT, $GL_StatusId); //Todo:ハッシュ化
+ $doSqlFunc->insertMessage(SENDERID, TEXT, $groupEventStatus);
 
  //DBにユーザーが存在しない場合は新規登録する
  if(PLACETYPE == 'user' && is_null($dbUserData['userId'])){
@@ -285,8 +346,7 @@ function createTextContent(){
 }
 
 function createSpecialContent($targetCol){
-  //$targetCol = 'gender'; //debug
-  $conf = new config();
+  $doSqlFunc = new doSqlFunc();
   $sendContent = array();
   switch($targetCol){
     case 'gender':
@@ -310,14 +370,20 @@ function createSpecialContent($targetCol){
           ]
       ]
     ];
-    //$GLOBALS['GL_StatusId'] = 2; //まぁ本当は必要ないけど・・
     break;
     case 'birthDate':
     $sendContent = [
       "type" => "text",
       "text" => "ねー君誕生日いつだっけ？8桁で教えてね！"
     ];
-    $GLOBALS['GL_StatusId'] = 3;
+    $doSqlFunc->changeEventStatus(SENDERID, 3);
+    break;
+    case 'location':
+    $sendContent = [
+      "type" => "text",
+      "text" => "ねー君の家どこやったっけ？平仮名でおしえてな"
+    ];
+    $doSqlFunc->changeEventStatus(SENDERID, 4);
     break;
   }
 
@@ -418,6 +484,155 @@ function createNickName(){
   $nickName = $firstName[mt_rand(0,count($firstName)-1)][0] . $lastName[mt_rand(0,count($lastName)-1)][0];
 
   return $nickName;
+}
+
+function getWeather($date, $inputCityName){
+  $doSqlFunc = new doSqlFunc();
+  $conf = new config();
+
+  $cityId = $doSqlFunc->getCityInfo(Roman2Kana($inputCityName,'romaji'));
+
+  $getWeatherUrl = 'http://api.openweathermap.org/data/2.5/forecast/city?id='.$cityId[0]['id'].'&APPID='.$conf->weatherApiKey;
+  $weather = file_get_contents($getWeatherUrl);
+  $weather = json_decode($weather);
+  $description = $weather->{'list'}[0]->{'weather'}[0]->{'description'};
+  $location = Roman2Kana($weather->{'city'}->{'name'}, 'kana');
+
+  switch(true){
+    case preg_match('/light rain/', $description):
+    $weatherText = $date.'の'.$location.'の天気は小雨だよ。傘を忘れずにね！';
+    break;
+    case preg_match('/heavy intensity rain/', $description):
+    $weatherText = $date.'の'.$location.'の天気は大雨だよ。気をつけてね！';
+    break;
+    case preg_match('/very heavy rain/', $description):
+    $weatherText = $date.'の'.$location.'の天気は豪雨だよ。いきてかえってね！';
+    break;
+    case preg_match('/rain/', $description):
+    $weatherText = $date.'の'.$location.'の天気は雨だよ。傘を忘れずにね！';
+    break;
+    case preg_match('/drizzle/', $description):
+    $weatherText = $date.'の'.$location.'の天気は霧だよ。運転には注意だね！';
+    break;
+    case preg_match('/snow/', $description):
+    $weatherText = $date.'の'.$location.'の天気は雪だよ。こわいよー！';
+    break;
+    case preg_match('/clear sky/', $description):
+    $weatherText = $date.'の'.$location.'の天気は晴れだよ。よかったね！';
+    break;
+    case preg_match('/clouds/', $description):
+    $weatherText = $date.'の'.$location.'の天気は曇りだよ！';
+    break;
+    case is_null($description):
+    $weatherText = 'そんな田舎しらんわぼけ';
+    break;
+  }
+  return $weatherText;
+}
+
+function Roman2Kana($i, $type)
+{
+    $r =array('vv','kk','gg','ss','zz'
+             ,'jj','tt','dd','hh','ff'
+             ,'bb','pp','mm','yy','rr','ww'
+             ,'cc','xx','ll',"n'",'nn'
+             ,'xtsa','xtsi','xtsu','xtse','xtso'
+             ,'xtu','ltsu','ltu'
+             ,'kya','kyi','kyu','kye','kyo'
+             ,'sya','syu','sye','syo'
+             ,'sha','shi','shu','she','sho'
+             ,'cha','chi','chu','che','cho'
+             ,'tsa','tsi','tsu','tse','tso'
+             ,'tha','thi','thu','the','tho'
+             ,'tya','tyi','tyu','tye','tyo'
+             ,'nya','nyu','nyo'
+             ,'hya','hyu','hyo'
+             ,'mya','myu','myo'
+             ,'rya','ryu','ryo'
+             ,'wha','whi','whe','who'
+             ,'wyi','wye'
+             ,'gya','gyu','gyo'
+             ,'zya','zyu','zyo'
+             ,'bya','byu','byo'
+             ,'pya','pyu','pyo'
+             ,'dha','dhi','dhu','dhe','dho'
+             ,'dya','dyi','dyu','dye','dyo'
+             ,'xya','lya','xyu','lyu','xyo','lyo'
+             ,'xwa','lwa','xke','lke'
+             ,'xa','xi','xu','xe','xo'
+             ,'la','li','lu','le','lo'
+             ,'ka','ki','ku','ke','ko'
+             ,'sa','si','su','se','so'
+             ,'ta','ti','tu','te','to'
+             ,'na','ni','nu','ne','no'
+             ,'ha','hi','fu','he','ho'
+             ,'fa','fi','fu','fe','fo'
+             ,'ma','mi','mu','me','mo'
+             ,'ya','yu','yo','yi','ye'
+             ,'ra','ri','ru','re','ro'
+             ,'wa','wi','wu','we','wo'
+             ,'ga','gi','gu','ge','go'
+             ,'za','zi','zu','ze','zo'
+             ,'ja','ji','ju','je','jo'
+             ,'da','di','du','de','do'
+             ,'ba','bi','bu','be','bo'
+             ,'va','vi','vu','ve','vo'
+             ,'pa','pi','pu','pe','po'
+             ,'n','a','i','u','e','o','-');
+
+    $s =array('っv','っk','っg','っs','っz'
+             ,'っj','っt','っd','っh','っf'
+             ,'っb','っp','っm','っy','っr','っw'
+             ,'っc','っx','っl','ん','ん'
+             ,'っぁ','っぃ','っ'  ,'っぇ','っぉ'
+             ,'っ'  ,'っ'  ,'っ'
+             ,'きゃ','きぃ','きゅ','きぇ','きょ'
+             ,'しゃ','しゅ','しぇ','しょ'
+             ,'しゃ','し'  ,'しゅ','しぇ','しょ'
+             ,'ちゃ','ち'  ,'ちゅ','ちぇ','ちょ'
+             ,'つぁ','つぃ','つ'  ,'つぇ','つぉ'
+             ,'てゃ','てぃ','てゅ','てぇ','てょ'
+             ,'ちゃ','ちぃ','ちゅ','ちぇ','ちょ'
+             ,'にゃ','にゅ','にょ'
+             ,'ひゃ','ひゅ','ひょ'
+             ,'みゃ','みゅ','みょ'
+             ,'りゃ','りゅ','りょ'
+             ,'うぁ','うぃ','うぇ','うぉ'
+             ,'ゐ'  ,'ゑ'
+             ,'ぎゃ','ぎゅ','ぎょ'
+             ,'じゃ','じゅ','じょ'
+             ,'びゃ','びゅ','びょ'
+             ,'ぴゃ','ぴゅ','ぴょ'
+             ,'でゃ','でぃ','でゅ','でぇ','でょ'
+             ,'ぢゃ','ぢぃ','ぢゅ','ぢぇ','ぢょ'
+             ,'ゃ','ゃ','ゅ','ゅ','ょ','ょ'
+             ,'ゎ','ゎ','ヶ','ヶ'
+             ,'ぁ','ぃ','ぅ','ぇ','ぉ'
+             ,'ぁ','ぃ','ぅ','ぇ','ぉ'
+             ,'か','き','く','け','こ'
+             ,'さ','し','す','せ','そ'
+             ,'た','ち','つ','て','と'
+             ,'な','に','ぬ','ね','の'
+             ,'は','ひ','ふ','へ','ほ'
+             ,'ふぁ','ふぃ','ふ','ふぇ','ふぉ'
+             ,'ま','み','む','め','も'
+             ,'や','ゆ','よ','ゐ','ゑ'
+             ,'ら','り','る','れ','ろ'
+             ,'わ','うぃ','う','うぇ','を'
+             ,'が','ぎ','ぐ','げ','ご'
+             ,'ざ','じ','ず','ぜ','ぞ'
+             ,'じゃ','じ','じゅ','じぇ','じょ'
+             ,'だ','ぢ','づ','で','ど'
+             ,'ば','び','ぶ','べ','ぼ'
+             ,'ば','び','ぶ','べ','ぼ'
+             ,'ぱ','ぴ','ぷ','ぺ','ぽ'
+             ,'ん','あ','い','う','え','お','ー');
+
+    if($type == 'kana'){
+      return str_ireplace($r,$s,$i);
+    } else {
+      return str_ireplace($s,$r,$i);
+    }
 }
 
 ?>
