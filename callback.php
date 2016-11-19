@@ -66,7 +66,7 @@ $conf = new config();
    $whileWeather = true;
    if(!is_null($GL_DbUserData['location'])){
      $weather = getWeather('明日', $GL_DbUserData['location']);
-     $weather = str_replace('-','',$weather);
+     $weather = str_replace('ー','',$weather);
      $post_data = [
        "replyToken" => REPLYTOKEN,
        "messages" => [
@@ -94,7 +94,7 @@ $conf = new config();
 
  if($GL_LatestMessage['statusId'] == 2){
    $weather = getWeather('明日', TEXT);
-   $weather = str_replace('-','',$weather);
+   $weather = str_replace('ー','',$weather);
    $post_data = [
      "replyToken" => REPLYTOKEN,
      "messages" => [
@@ -210,13 +210,13 @@ $conf = new config();
    */
    //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
    if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
-     $eventFrag = mt_rand(1,30);
+     $eventFrag = mt_rand(1,35);
    }
 
    //たまにニックネームを更新する
    if($eventFrag !== 1 && PLACETYPE == 'user' && $GL_LatestMessage['statusId'] == 1 && $groupEventStatus == 1){
      if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user' && $whileWeather == false){
-       $nickNameFrag = mt_rand(1,5);
+       $nickNameFrag = mt_rand(1,35);
      }
    }
    if($eventFrag == 1){
@@ -239,9 +239,9 @@ $conf = new config();
          }
          break;
          case 4: //Ask Location
-         $cityInfo = $doSqlFunc->getCityInfo(Roman2Kana(TEXT, 'romaji'));
+         $cityInfo = $doSqlFunc->getCityInfo($conf->Roman2Kana(TEXT, 'romaji'));
          if(!is_null($cityInfo[0]['name'])){
-           $replyMessage = 'そうそう。'.Roman2Kana($cityInfo[0]['name'],'kana').'だったね。';
+           $replyMessage = 'そうそう。'.$conf->Roman2Kana($cityInfo[0]['name'],'kana').'だったね。';
            $doSqlFunc->insertPostData(SENDERID,array('location', $cityInfo[0]['name']));
          } else {
            $replyMessage = 'どこやねん';
@@ -489,18 +489,17 @@ function createNickName(){
 function getWeather($date, $inputCityName){
   $doSqlFunc = new doSqlFunc();
   $conf = new config();
-
-  $cityId = $doSqlFunc->getCityInfo(Roman2Kana($inputCityName,'romaji'));
+  $cityId = $doSqlFunc->getCityInfo($conf->Roman2Kana($inputCityName,'romaji'));
 
   $getWeatherUrl = 'http://api.openweathermap.org/data/2.5/forecast/city?id='.$cityId[0]['id'].'&APPID='.$conf->weatherApiKey;
   $weather = file_get_contents($getWeatherUrl);
   $weather = json_decode($weather);
-  $description = $weather->{'list'}[0]->{'weather'}[0]->{'description'};
-  $location = Roman2Kana($weather->{'city'}->{'name'}, 'kana');
+  $description = $weather->{'list'}[1]->{'weather'}[0]->{'description'};
+  $location = $conf->Roman2Kana($weather->{'city'}->{'name'}, 'kana');
 
   switch(true){
     case preg_match('/light rain/', $description):
-    $weatherText = $date.'の'.$location.'の天気は小雨だよ。傘を忘れずにね！';
+    $weatherText = $date.'の'.$location.'の天気は小雨だよ。傘もってくといいよ！';
     break;
     case preg_match('/heavy intensity rain/', $description):
     $weatherText = $date.'の'.$location.'の天気は大雨だよ。気をつけてね！';
@@ -528,111 +527,6 @@ function getWeather($date, $inputCityName){
     break;
   }
   return $weatherText;
-}
-
-function Roman2Kana($i, $type)
-{
-    $r =array('vv','kk','gg','ss','zz'
-             ,'jj','tt','dd','hh','ff'
-             ,'bb','pp','mm','yy','rr','ww'
-             ,'cc','xx','ll',"n'",'nn'
-             ,'xtsa','xtsi','xtsu','xtse','xtso'
-             ,'xtu','ltsu','ltu'
-             ,'kya','kyi','kyu','kye','kyo'
-             ,'sya','syu','sye','syo'
-             ,'sha','shi','shu','she','sho'
-             ,'cha','chi','chu','che','cho'
-             ,'tsa','tsi','tsu','tse','tso'
-             ,'tha','thi','thu','the','tho'
-             ,'tya','tyi','tyu','tye','tyo'
-             ,'nya','nyu','nyo'
-             ,'hya','hyu','hyo'
-             ,'mya','myu','myo'
-             ,'rya','ryu','ryo'
-             ,'wha','whi','whe','who'
-             ,'wyi','wye'
-             ,'gya','gyu','gyo'
-             ,'zya','zyu','zyo'
-             ,'bya','byu','byo'
-             ,'pya','pyu','pyo'
-             ,'dha','dhi','dhu','dhe','dho'
-             ,'dya','dyi','dyu','dye','dyo'
-             ,'xya','lya','xyu','lyu','xyo','lyo'
-             ,'xwa','lwa','xke','lke'
-             ,'xa','xi','xu','xe','xo'
-             ,'la','li','lu','le','lo'
-             ,'ka','ki','ku','ke','ko'
-             ,'sa','si','su','se','so'
-             ,'ta','ti','tu','te','to'
-             ,'na','ni','nu','ne','no'
-             ,'ha','hi','fu','he','ho'
-             ,'fa','fi','fu','fe','fo'
-             ,'ma','mi','mu','me','mo'
-             ,'ya','yu','yo','yi','ye'
-             ,'ra','ri','ru','re','ro'
-             ,'wa','wi','wu','we','wo'
-             ,'ga','gi','gu','ge','go'
-             ,'za','zi','zu','ze','zo'
-             ,'ja','ji','ju','je','jo'
-             ,'da','di','du','de','do'
-             ,'ba','bi','bu','be','bo'
-             ,'va','vi','vu','ve','vo'
-             ,'pa','pi','pu','pe','po'
-             ,'n','a','i','u','e','o','-');
-
-    $s =array('っv','っk','っg','っs','っz'
-             ,'っj','っt','っd','っh','っf'
-             ,'っb','っp','っm','っy','っr','っw'
-             ,'っc','っx','っl','ん','ん'
-             ,'っぁ','っぃ','っ'  ,'っぇ','っぉ'
-             ,'っ'  ,'っ'  ,'っ'
-             ,'きゃ','きぃ','きゅ','きぇ','きょ'
-             ,'しゃ','しゅ','しぇ','しょ'
-             ,'しゃ','し'  ,'しゅ','しぇ','しょ'
-             ,'ちゃ','ち'  ,'ちゅ','ちぇ','ちょ'
-             ,'つぁ','つぃ','つ'  ,'つぇ','つぉ'
-             ,'てゃ','てぃ','てゅ','てぇ','てょ'
-             ,'ちゃ','ちぃ','ちゅ','ちぇ','ちょ'
-             ,'にゃ','にゅ','にょ'
-             ,'ひゃ','ひゅ','ひょ'
-             ,'みゃ','みゅ','みょ'
-             ,'りゃ','りゅ','りょ'
-             ,'うぁ','うぃ','うぇ','うぉ'
-             ,'ゐ'  ,'ゑ'
-             ,'ぎゃ','ぎゅ','ぎょ'
-             ,'じゃ','じゅ','じょ'
-             ,'びゃ','びゅ','びょ'
-             ,'ぴゃ','ぴゅ','ぴょ'
-             ,'でゃ','でぃ','でゅ','でぇ','でょ'
-             ,'ぢゃ','ぢぃ','ぢゅ','ぢぇ','ぢょ'
-             ,'ゃ','ゃ','ゅ','ゅ','ょ','ょ'
-             ,'ゎ','ゎ','ヶ','ヶ'
-             ,'ぁ','ぃ','ぅ','ぇ','ぉ'
-             ,'ぁ','ぃ','ぅ','ぇ','ぉ'
-             ,'か','き','く','け','こ'
-             ,'さ','し','す','せ','そ'
-             ,'た','ち','つ','て','と'
-             ,'な','に','ぬ','ね','の'
-             ,'は','ひ','ふ','へ','ほ'
-             ,'ふぁ','ふぃ','ふ','ふぇ','ふぉ'
-             ,'ま','み','む','め','も'
-             ,'や','ゆ','よ','ゐ','ゑ'
-             ,'ら','り','る','れ','ろ'
-             ,'わ','うぃ','う','うぇ','を'
-             ,'が','ぎ','ぐ','げ','ご'
-             ,'ざ','じ','ず','ぜ','ぞ'
-             ,'じゃ','じ','じゅ','じぇ','じょ'
-             ,'だ','ぢ','づ','で','ど'
-             ,'ば','び','ぶ','べ','ぼ'
-             ,'ば','び','ぶ','べ','ぼ'
-             ,'ぱ','ぴ','ぷ','ぺ','ぽ'
-             ,'ん','あ','い','う','え','お','ー');
-
-    if($type == 'kana'){
-      return str_ireplace($r,$s,$i);
-    } else {
-      return str_ireplace($s,$r,$i);
-    }
 }
 
 ?>

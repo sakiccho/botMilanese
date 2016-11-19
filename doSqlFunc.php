@@ -182,4 +182,33 @@ class doSqlFunc extends config{
     }
   }
 
+  /**
+   * 明日の天気に注意喚起が必要な地域に住むユーザーを取得
+   *
+   * @access public
+   * @return array result
+   *          居住地域を登録済みのユーザー
+   */
+  function getUserInfoWeatherWarning(){
+    $sql = <<< EOM
+SELECT
+    `userId`,
+    `displayName`,
+    `location`,
+    `id`,
+    `nickName`
+FROM
+    `tbl_user` a
+    LEFT JOIN
+        mst_cityID b
+    ON  a.location = b.name
+WHERE
+    `location` IS NOT NULL
+GROUP BY userId
+EOM;
+    $stmt = $this->pdo->query($sql);
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $result;
+  }
+
 }
