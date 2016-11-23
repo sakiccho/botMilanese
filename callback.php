@@ -56,6 +56,22 @@ $conf = new config();
  $GL_LatestMessage = $doSqlFunc->getLatestMessage(SENDERID);
 
  /**
+ * Amazonイベントフラグ
+ */
+ $whileAmazon = false;
+ if(preg_match('/あまぞん|アマゾン|Amazon|ほしいもの|欲しいもの|あまぎふ|アマギフ|ぎふと|ギフト/', TEXT)){
+   $whileAmazon = true;
+   $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => 'かってくれるの？ありがと❤️']]]);
+   $sendContent = createGiftContent();
+   $post_data = [
+     "replyToken" => REPLYTOKEN,
+     "messages" => [$sendContent]
+   ];
+   $doFunc->sendMessage($post_data);
+   $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => 'よろしく（；-；)']]]);
+ }
+
+ /**
  * グループにおけるイベントフラグ
  * 1:通常状態
  * 2:天気イベント待ち状態
@@ -108,67 +124,27 @@ $conf = new config();
    $groupEventStatus = 1;
  }
 
- // $sendContent = [
- //   "type" => "template",
- //   "altText" => "ちょ、スマホのLINEでみてこれ",
- //   "template"=> [
- //            "type" => "carousel",
- //              "columns" => [
- //                "text" => "description",
- //                "actions" => [
- //                    [
- //                        "type" => "postback",
- //                        "label" => "Buy",
- //                        "data" => "action=buy&itemid=111"
- //                    ],
- //                    [
- //                        "type" => "postback",
- //                        "label" => "Buy",
- //                        "data" => "action=buy&itemid=111"
- //                    ],
- //                    [
- //                        "type" => "uri",
- //                        "label" => "Buy",
- //                        "uri" => "action=buy&itemid=111"
- //                    ]
- //                  ]
- //                ],[
- //                  "text" => "description",
- //                  "actions" => [
- //                      [
- //                          "type" => "postback",
- //                          "label" => "Buy",
- //                          "data" => "action=buy&itemid=111"
- //                      ],
- //                      [
- //                          "type" => "postback",
- //                          "label" => "Buy",
- //                          "data" => "action=buy&itemid=111"
- //                      ],
- //                      [
- //                          "type" => "uri",
- //                          "label" => "Buy",
- //                          "uri" => "action=buy&itemid=111"
- //                      ]
- //                    ]
- //                  ]
- //       ]
- //
- // ];
- // $doFunc->pushMessage(["to" => 'U015dc1cc36df8e76f4a313d8b1c3b769',"messages" => [$sendContent]]);
-
  /**
  * #1 POSTBACKにデータが存在する場合
  */
  if(!is_null(POSTBACK)){
-   $postData = explode("=",POSTBACK); //array0にカラム名, 2にインサート値が入る
-   $sendContent = [
-    "type" => "text",
-    "text" => "おっけ、ありがとー"
-   ];
-   $doSqlFunc->insertPostData(SENDERID,$postData);
-   $doSqlFunc->changeEventStatus(SENDERID, 1);
-
+   //ギフト対応
+   if(POSTBACK == 'deny'){
+     $denyText = ['しんで','なんで（；-；)','かなしい','ええ（；-；)','さよなら'];
+     $post_data = [
+       "replyToken" => REPLYTOKEN,
+       "messages" => [["type" => "text","text" => $denyText[mt_rand(0,4)]]]];
+     $doFunc->sendMessage($post_data);
+   //POSTBACK DATAをDBに登録
+   } else {
+     $postData = explode("=",POSTBACK); //array0にカラム名, 2にインサート値が入る
+     $sendContent = [
+      "type" => "text",
+      "text" => "おっけ、ありがとー"
+     ];
+     $doSqlFunc->insertPostData(SENDERID,$postData);
+     $doSqlFunc->changeEventStatus(SENDERID, 1);
+   }
  /**
  * #2 通常の返信作成処理
  */
@@ -209,20 +185,30 @@ $conf = new config();
    * 4:Nicknameの処理中状態
    */
    //ユーザー情報がDBに存在 & イベントのレシーブ待ちではない & Nullのカラムが1つ以上存在 & グループではない
-   if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $nullColumnListNum !== 0 && PLACETYPE == 'user'){
-     $eventFrag = mt_rand(1,35);
+   if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user'){
+     if($nullColumnListNum !== 0){
+       $eventFrag = mt_rand(1,35);
+     } else {
+       $giftFrag = mt_rand(1,35);
+     }
    }
 
    //たまにニックネームを更新する
-   if($eventFrag !== 1 && PLACETYPE == 'user' && $GL_LatestMessage['statusId'] == 1 && $groupEventStatus == 1){
-     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && PLACETYPE == 'user' && $whileWeather == false){
+   if($eventFrag !== 1 && $eventFrag !== 2 && PLACETYPE == 'user' && $GL_LatestMessage['statusId'] == 1 && $groupEventStatus == 1){
+     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $whileWeather == false && $whileAmazon == false){
        $nickNameFrag = mt_rand(1,35);
      }
    }
+   //プロフィールアップデート
    if($eventFrag == 1){
 
      $targetColumn = mt_rand(0,$nullColumnListNum-1);
      $sendContent = createSpecialContent($nullColumnList[$targetColumn]);
+
+   //ほしい物リストを送信
+   } else if($giftFrag == 1){
+     $doFunc->pushMessage(["to" => SENDERID,"messages" => [["type" => "text","text" => 'よろしくおねがいします']]]);
+     $sendContent = createGiftContent();
 
    } else if ($nickNameFrag == 1){
      $sendContent = [
@@ -527,6 +513,64 @@ function getWeather($date, $inputCityName){
     break;
   }
   return $weatherText;
+}
+
+function createGiftContent(){
+ $giftUrl = 'https://www.amazon.co.jp/gp/registry/wishlist/2FLA06WCPEKTA/';
+ $html = file_get_contents($giftUrl);
+ mb_language('Japanese');
+ $html = mb_convert_encoding($html,'utf-8','auto');
+ $html = preg_replace('/(\n|\r)/','',$html);
+ preg_match_all('/\<div id=\"item_(.*?)\<\/h5\>/', $html, $matches);
+ $i=0;
+ $columns = array();
+  for($i=0;$i<5;$i++){
+    preg_match('/href=\"(.*?)\"\>/', $matches[0][$i], $productUrl);
+    preg_match('/\s{20}(.*?)\s{5}/', $matches[0][$i], $productTitle);
+    preg_match('/border=\"0\"\ssrc=\"(.*?)\"/', $matches[0][$i], $productImage);
+    $title = preg_replace("/( |　)/", "", $productTitle[0] );
+    if(mb_strlen($title) >= 40){
+      $title = substr($title, 0, 37).'...';
+    }
+    $title = mb_convert_encoding($title,'utf-8','auto');
+
+    $columns[$i] = [
+        "thumbnailImageUrl"=> $productImage[1],
+        "title"=> $title,
+        "text"=> "おねがいします",
+        "actions"=> [
+            [
+              "type"=> "uri",
+              "label"=> "リストをみる",
+              "uri"=> $giftUrl
+            ],
+            [
+              "type"=> "uri",
+              "label"=> "この商品を購入する",
+              "uri"=> 'https://www.amazon.co.jp/' . $productUrl[1]
+            ],
+            [
+              "type"=> "postback",
+              "label"=> "購入しない",
+              "data"=> "deny"
+            ]
+        ]
+    ];
+  }
+
+  $sendContent = [
+   "type"=> "template",
+   "altText"=> "スマホのラインでみてこれはよ",
+   "template"=> [
+       "type"=> "carousel",
+       "columns" => [
+       ]
+   ]
+ ];
+ foreach($columns as $column){
+   array_push($sendContent['template']['columns'],$column);
+ }
+ return $sendContent;
 }
 
 ?>

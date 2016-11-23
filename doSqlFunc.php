@@ -29,7 +29,7 @@ class doSqlFunc extends config{
   }
 
   /**
-   * ユーザーから送信されたメッセージをDBに登録する
+   * ユーザーから送信されたメッセージをハッシュ化してDBに登録する
    * インジェクション対策のためexecuteメソッドを使用している。
    *
    * @access public
