@@ -1,15 +1,15 @@
 <?php
 require_once('doFunc.php');
 require_once('doSqlFunc.php');
+require_once('twitter.php');
 require_once('./settings/config.php');
 use BotMilanese\Setting\config;
 use BotMilanese\Controller\Message\doFunc;
 use BotMilanese\Controller\SQL\doSqlFunc;
+use BotMilanese\Controller\Twitter\twitter;
 
 $doFunc = new doFunc();
 $doSqlFunc = new doSqlFunc();
-$conf = new config();
-
 /** *=================================================================================================================
 * データ取得処理
 * ================================================================================================================== */
@@ -51,12 +51,11 @@ $conf = new config();
    //ユーザーステータスを取得する
    $statusId = (int)$GL_DbUserData['statusId'];
  }
-
  //DBから最終メッセージを取得
  $GL_LatestMessage = $doSqlFunc->getLatestMessage(SENDERID);
 
  /**
- * Amazonイベントフラグ
+ * Amazonイベント
  */
  $whileAmazon = false;
  if(preg_match('/あまぞん|アマゾン|Amazon|ほしいもの|欲しいもの|あまぎふ|アマギフ|ぎふと|ギフト/', TEXT)){
@@ -195,7 +194,7 @@ $conf = new config();
 
    //たまにニックネームを更新する
    if($eventFrag !== 1 && $eventFrag !== 2 && PLACETYPE == 'user' && $GL_LatestMessage['statusId'] == 1 && $groupEventStatus == 1){
-     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $whileWeather == false && $whileAmazon == false){
+     if(!is_null($GL_DbUserData['userId']) && $statusId == 1 && $whileWeather == false && $whileAmazon == false && $whileTwitter == false){
        $nickNameFrag = mt_rand(1,35);
      }
    }
@@ -300,7 +299,6 @@ function createTextContent(){
   $mPtJsonObj = getDictJson('json/mPt.json'); //検索対象文字列
   $rPtJsonObj = getDictJson('json/rPt.json'); //返信候補文字列
   $matchTypeLength = count($mPtJsonObj['pattern']);
-  $typeCount = 0;
   if(!is_null($GLOBALS['GL_DbUserData']['userId'])){
     //前回と同じメッセージの場合
     if($GLOBALS['GL_LatestMessage']['message'] == TEXT){ //Todo:グループの場合
@@ -313,15 +311,19 @@ function createTextContent(){
     $textType = isMatch($mPtJsonObj['pattern'], TEXT, $matchTypeLength);
   };
 
-
-
   $column = getColumnNumber($rPtJsonObj['pattern'], $textType);
+
   //返信メッセージ番号をランダムに選択
   $replyNumber = mt_rand($column['begin'], $column['end']);
   $replyMessage = $rPtJsonObj['pattern'][$replyNumber][1];
 
+  if(preg_match("/TW_/",$textType)){
+    $replyMessage = getLastTweet($replyMessage,1);
+  }
+
   //置換
   $replyMessage = str_replace("*name*", $GLOBALS['GL_CallName'], $replyMessage);
+
   $sendContent = [
   	"type" => "text",
   	"text" => $replyMessage
@@ -425,11 +427,13 @@ function isMatch($targetArray, $targetString, $length){
 }
 
 function getColumnNumber($searchArray ,$typeNum){
+  $conf = new config();
+
   $arrayLength = count($searchArray);
   $beginPos = array();
   //返信タイプのJsonファイル内での開始と終了位置を取得
   for($i=0;$i<$arrayLength;$i++){
-    if($searchArray[$i][0] == $typeNum){
+    if(strval($searchArray[$i][0]) == $typeNum){
      array_push($beginPos,$i);
     }
   }
@@ -438,6 +442,7 @@ function getColumnNumber($searchArray ,$typeNum){
     "begin" => $beginPos[0],
     "end" => $beginPos[0] + count($beginPos) - 1
   ];
+
   return $pos;
 }
 
@@ -571,6 +576,19 @@ function createGiftContent(){
    array_push($sendContent['template']['columns'],$column);
  }
  return $sendContent;
+}
+
+function getLastTweet($replyMessage,$count){
+  $twitter = new twitter();
+  $lastTweet = $twitter->getUserTweet($replyMessage,$count);
+
+  if($lastTweet['name'] !== 'false'){
+    $lastText = ['あほやんな！','わろた','なにいっとんねんこいつ','きっしょ','しょーもな'];
+    $replyMessage = $lastTweet['tweet'] . '　　だって。' . $lastTweet['name'] . $lastText[mt_rand(0,4)];
+  } else {
+    $replyMessage = $lastTweet['tweet'];
+  }
+  return $replyMessage;
 }
 
 ?>
