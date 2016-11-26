@@ -123,27 +123,27 @@ $doSqlFunc = new doSqlFunc();
    $groupEventStatus = 1;
  }
 
+ if(TEXT == 'かわねーよ'){
+   $denyText = ['なんで（；-；)','かなしい','ええ（；-；)','さよなら','くそ'];
+   $post_data = [
+     "replyToken" => REPLYTOKEN,
+     "messages" => [["type" => "text","text" => $denyText[mt_rand(0,4)]]]];
+   $doFunc->sendMessage($post_data);
+ //POSTBACK DATAをDBに登録
+ }
+
  /**
  * #1 POSTBACKにデータが存在する場合
  */
  if(!is_null(POSTBACK)){
-   //ギフト対応
-   if(POSTBACK == 'deny'){
-     $denyText = ['しんで','なんで（；-；)','かなしい','ええ（；-；)','さよなら'];
-     $post_data = [
-       "replyToken" => REPLYTOKEN,
-       "messages" => [["type" => "text","text" => $denyText[mt_rand(0,4)]]]];
-     $doFunc->sendMessage($post_data);
-   //POSTBACK DATAをDBに登録
-   } else {
-     $postData = explode("=",POSTBACK); //array0にカラム名, 2にインサート値が入る
-     $sendContent = [
-      "type" => "text",
-      "text" => "おっけ、ありがとー"
-     ];
-     $doSqlFunc->insertPostData(SENDERID,$postData);
-     $doSqlFunc->changeEventStatus(SENDERID, 1);
-   }
+
+   $postData = explode("=",POSTBACK); //array0にカラム名, 2にインサート値が入る
+   $sendContent = [
+    "type" => "text",
+    "text" => "おっけ、ありがとー"
+   ];
+   $doSqlFunc->insertPostData(SENDERID,$postData);
+   $doSqlFunc->changeEventStatus(SENDERID, 1);
  /**
  * #2 通常の返信作成処理
  */
@@ -555,9 +555,9 @@ function createGiftContent(){
               "uri"=> 'https://www.amazon.co.jp/' . $productUrl[1]
             ],
             [
-              "type"=> "postback",
+              "type"=> "message",
               "label"=> "購入しない",
-              "data"=> "deny"
+              "text"=> "かわねーよ"
             ]
         ]
     ];
