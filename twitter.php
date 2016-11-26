@@ -1,8 +1,8 @@
 <?php
 /**
- * [API]MySQL操作系 コントローラークラス
+ * [API]Twitter APIコントローラークラス
  *
- * インサート、セレクトなどの実行関数をまとめたコントローラークラス
+ * TwitterAPIのトークン取得、ツイート取得などの実行関数をまとめたコントローラークラス
  *
  * @access public
  * @author sakiccho <sakiccho@gmail.com>
